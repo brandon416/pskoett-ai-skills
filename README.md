@@ -1,31 +1,38 @@
 # pskoett-ai-skills
 
-A collection of skills for AI agents. Follows the [Agent Skills specification](https://agentskills.io/specification) and ships an [Agent Plugins 1.0](https://agent-plugins.org/specification) portable package.
-This repository is my personal skill testing ground.
+I use this repository to build and test skills for AI agents. The skills follow the [Agent Skills specification](https://agentskills.io/specification), and the repo includes an [Agent Plugins 1.0](https://agent-plugins.org/specification) portable package.
 
 ## Philosophy
 
-Every skill in this collection is built around a philosophy — a principle that addresses a specific failure mode in how agents work today. `plan-interview` is about collaborative planning: before codebase exploration starts, user and agent run a structured interview to align on constraints, scope, risk, and success criteria — and to surface whether a preparatory refactor should come before the main change. `intent-framed-agent` makes execution intent explicit so scope drift becomes visible. `context-surfing` monitors context quality and exits cleanly before degradation corrupts output. `verify-gate` runs compile, test, and lint checks so the agent doesn't need you to tell it the output was wrong if a test can. `self-healing` turns mid-task failures into verified, reusable artifacts instead of swept-under-the-rug retries. `simplify-and-harden` uses the peak context at end-of-task for a focused quality and security review. `self-improvement` turns repeated mistakes into durable rules that persist across sessions.
+Each skill addresses a problem I want agents to handle more consistently. Before codebase exploration, `plan-interview` helps the user and agent agree on constraints, scope, risk, and success criteria. It also checks whether a preparatory refactor should come first.
 
-The common thread: agents have peak context at specific moments — after planning, mid-execution, at completion, after learning — and these skills are designed to exploit those peaks. Each skill encodes a philosophy that agents struggle to internalize on their own, turning it into a structured workflow they can follow reliably.
+During execution, `intent-framed-agent` records the intended outcome and watches for scope drift. `context-surfing` monitors context quality and prepares a handoff when it degrades. `verify-gate` runs compile, test, and lint checks so the agent can catch failures without waiting for you to point them out.
 
-If you want to improve agent output over time, you need two loops, not one. The inner loop catches failures during a running session: the agent detects a problem, verifies its work against machine signals, and — with `self-healing` — recovers, files the verified fix as a reusable artifact, and continues, without you touching anything. The outer loop closes gaps across sessions: you capture where the agent failed, figure out what knowledge was missing, and encode it somewhere the agent can reach next time. `learning-aggregator` reads accumulated learnings across sessions and surfaces patterns. `harness-updater` encodes those patterns as permanent rules in project instruction files. `eval-creator` turns promoted rules into regression tests. `pre-flight-check` surfaces all of this at the start of the next session — closing the loop. The knowledge gaps get smaller with every cycle as it compounds.
+When something fails, `self-healing` diagnoses the problem, verifies the fix, and saves it for reuse. After implementation, `simplify-and-harden` reviews quality and security while the agent still has the task context. `self-improvement` records mistakes and lessons for future sessions.
 
-`skill-pipeline` ties these pieces together by classifying the task and routing it through the right combination at the right depth.
+The idea is to use context while it's available. Planning captures what the user wants, execution reveals where the work drifts, and completion gives the agent a chance to review what it just built. The skills give each check a place in the workflow.
 
-One skill sits outside the two loops by design: `control-session-orchestrator` is an orchestration-layer skill, not an inner/outer-loop step. It runs *above* the pipeline — coordinating multi-agent, multi-session work from a Codex, Copilot, or agent-app control session — and is invoked directly rather than routed by `skill-pipeline`.
+I organize the skills into two feedback loops. The inner loop catches and fixes failures during a session. The outer loop uses what went wrong to improve later sessions.
+
+In the outer loop, `learning-aggregator` finds patterns in saved learnings, and `harness-updater` writes them into project instructions. `eval-creator` turns promoted rules into regression tests. `pre-flight-check` brings relevant learnings and eval status into the next session.
+
+`skill-pipeline` classifies the task and selects the skills and depth it needs. Each skill also works on its own.
+
+`control-session-orchestrator` coordinates work across agents and sessions from a Codex, Copilot, or agent-app control session. It runs above the pipeline, outside the two loops. Invoke it directly rather than through `skill-pipeline`.
 
 ## Install
 
 ### Agent Plugins 1.0
 
-The portable package entrypoint is [`agent-plugin/plugin.json`](agent-plugin/plugin.json). Point an Agent Plugins-compatible client or packager at the `agent-plugin/` directory.
+Point an Agent Plugins-compatible client or packager at `agent-plugin/`. Its entrypoint is [`agent-plugin/plugin.json`](agent-plugin/plugin.json).
 
-The portable package contains the curated Agent Skills bundle only. Agent Plugins 1.0 does not standardize hooks, agents, commands, or installation UX, so the native Claude Code, Codex, and GitHub Copilot adapters below remain the supported way to load those client-specific capabilities. A `hooks/` directory inside an individual portable skill is a skill resource, not an automatically registered plugin hook. This repository does not publish a portable `mcp.json` because it provides no MCP server.
+The portable package contains only the curated Agent Skills bundle. Agent Plugins 1.0 does not standardize hooks, agents, commands, or installation. Use the native Claude Code, Codex, or GitHub Copilot adapters below for those capabilities.
+
+A `hooks/` directory inside a portable skill is a skill resource. Clients don't automatically register it as a plugin hook. The repo provides no MCP server, so it has no portable `mcp.json`.
 
 ### Claude Code
 
-Install as a Claude Code plugin from this repo's marketplace. Run each command from inside Claude Code:
+Install the plugin from this repo's marketplace. Run each command inside Claude Code:
 
 1. Register this repo as a plugin marketplace:
    ```
@@ -44,17 +51,17 @@ This installs the full bundle: skills, audit agents, and hooks.
 
 ### Codex
 
-The same bundle now ships as a repo-local Codex plugin from `plugin/`.
+The same bundle is available as a repo-local Codex plugin in `plugin/`.
 
 1. Open this repository in Codex.
-2. Restart Codex after pulling the latest repo state so it reloads repo marketplaces.
+2. After pulling the latest changes, restart Codex to reload the repo marketplaces.
 3. Open the plugin directory, choose the `pskoett skills` marketplace, and install `pskoett-ai-skills`.
 
 Codex reads the marketplace from `.agents/plugins/marketplace.json` and the plugin manifest from `plugin/.codex-plugin/plugin.json`.
 
 ### GitHub Copilot CLI
 
-The same bundle ships as a Copilot CLI plugin nested under `plugin/.copilot-plugin/`, reusing the shared `plugin/skills/`, `plugin/agents/`, and `plugin/hooks/` content:
+The Copilot CLI plugin lives in `plugin/.copilot-plugin/` and uses the shared `plugin/skills/`, `plugin/agents/`, and `plugin/hooks/` directories:
 
 ```
 copilot plugin marketplace add pskoett/pskoett-skills
@@ -65,7 +72,7 @@ Copilot reads the marketplace from `.github/plugin/marketplace.json` and the plu
 
 ### Individual skills via GitHub CLI (`gh skill`)
 
-GitHub CLI now supports Agent Skills via [`gh skill`](https://cli.github.com/manual/gh_skill_install). Requires GitHub CLI `v2.90.0` or later.
+Use [`gh skill`](https://cli.github.com/manual/gh_skill_install) to install individual skills. It requires GitHub CLI `v2.90.0` or later.
 
 ```bash
 # Browse this repo's skills interactively
@@ -85,7 +92,7 @@ gh skill install pskoett/pskoett-skills verify-gate --agent codex --scope user
 
 ### Individual skills via the Agent Skills CLI
 
-If you only want specific skills and not the full plugin bundle:
+You can also install individual skills with the Agent Skills CLI:
 
 ```bash
 npx skills add pskoett/pskoett-skills/skills/verify-gate
@@ -94,7 +101,7 @@ npx skills add pskoett/pskoett-skills/skills/simplify-and-harden
 npx skills add pskoett/pskoett-skills/skills/self-improvement
 ```
 
-Works with any agent following the [Agent Skills specification](https://agentskills.io/specification).
+The skills work with agents that follow the [Agent Skills specification](https://agentskills.io/specification).
 
 ### Manual install
 
@@ -121,56 +128,56 @@ skills/
 
 | Skill | Description |
 |-------|-------------|
-| [context-decay](skills/context-decay/) | Maintains persistent knowledge by decay type and rate; works standalone or at self-improvement capture, review, and promotion |
-| [context-surfing](skills/context-surfing/) | Monitors context window health and rides peak context quality for maximum output fidelity during multi-step execution |
-| [control-session-orchestrator](skills/control-session-orchestrator/) | Control-plane workflow for coordinating multi-agent, multi-session project work from Codex, GitHub Copilot, or agent-app sessions |
-| [intent-framed-agent](skills/intent-framed-agent/) | Captures a lightweight intent contract at execution start and monitors coding-task drift until resolution |
+| [context-decay](skills/context-decay/) | Maintains saved knowledge by decay type and rate, on its own or during self-improvement capture, review, and promotion |
+| [context-surfing](skills/context-surfing/) | Monitors context quality during multi-step work and prepares a handoff when it degrades |
+| [control-session-orchestrator](skills/control-session-orchestrator/) | Coordinates work across agents and sessions from Codex, GitHub Copilot, or agent-app sessions |
+| [intent-framed-agent](skills/intent-framed-agent/) | Records the intended outcome at execution start and monitors scope drift until the task is resolved |
 | [plan-interview](skills/plan-interview/) | Runs a structured interview before planning non-trivial implementations |
-| [self-healing](skills/self-healing/) | Active runtime recovery — diagnose, patch, verify, file the verified fix when a command, test, helper, env, or external service fails mid-task |
+| [self-healing](skills/self-healing/) | Diagnoses, patches, verifies, and records fixes when a command, test, helper, environment, or external service fails during a task |
 | [self-improvement](skills/self-improvement/) | Captures learnings and errors with hook-based activation and automatic skill extraction |
-| [skill-pipeline](skills/skill-pipeline/) | Pipeline orchestrator that classifies tasks and routes them through the right skill combination at the right depth |
-| [simplify-and-harden](skills/simplify-and-harden/) | Post-completion self-review that runs simplify, harden, and micro-documentation passes before signaling done |
-| [verify-gate](skills/verify-gate/) | Machine verification gate (compile, test, lint) between implementation and quality review with fix loop |
-| [learning-aggregator](skills/learning-aggregator/) | Cross-session analysis of .learnings/ files — finds patterns, ranks promotion candidates |
-| [pre-flight-check](skills/pre-flight-check/) | Session-start scan that surfaces relevant learnings, errors, and eval status before work begins |
+| [skill-pipeline](skills/skill-pipeline/) | Classifies tasks and selects which skills to run and how much review each task needs |
+| [simplify-and-harden](skills/simplify-and-harden/) | Reviews completed work to simplify code, address security risks, add brief documentation, and re-run checks |
+| [verify-gate](skills/verify-gate/) | Runs compile, test, and lint checks between implementation and quality review, with a fix loop for failures |
+| [learning-aggregator](skills/learning-aggregator/) | Reads .learnings/ files across sessions, finds patterns, and ranks candidates for promotion into rules |
+| [pre-flight-check](skills/pre-flight-check/) | Checks relevant learnings, errors, and eval status before work begins |
 | [eval-creator](skills/eval-creator/) | Creates permanent eval cases from promoted learnings and runs regression checks |
 
-## CI Skills (gh-aw) (beta)
+## CI skills (gh-aw) (beta)
 
-Headless CI variants for GitHub Agentic Workflows. Each mirrors an interactive skill but runs without human interaction — scanning, reporting, and optionally gating PRs.
+These variants run in GitHub Agentic Workflows (gh-aw) without human interaction. Each adapts an interactive skill to scan, report, and optionally gate PRs.
 
 | Skill | Description |
 |-------|-------------|
-| [self-healing-ci](skills/self-healing-ci/) | CI-only self-healing workflow — diagnoses failed PR checks, proposes verified patches as PR comments or label-gated commits, files HEAL entries to `.learnings/HEALS.md` |
-| [self-improvement-ci](skills/self-improvement-ci/) | CI-only self-improvement workflow for recurring failure-pattern capture using gh-aw |
-| [simplify-and-harden-ci](skills/simplify-and-harden-ci/) | CI-only simplify/harden workflow for pull requests using gh-aw with headless scan/report gates |
-| [learning-aggregator-ci](skills/learning-aggregator-ci/) | CI-only cross-session learning aggregation — scheduled pattern detection and gap reporting using gh-aw |
-| [eval-creator-ci](skills/eval-creator-ci/) | CI-only eval regression runner — per-PR eval checks and scheduled eval creation from promoted patterns using gh-aw |
+| [self-healing-ci](skills/self-healing-ci/) | Diagnoses failed PR checks, proposes verified patches as PR comments or label-gated commits, and records HEAL entries in `.learnings/HEALS.md` |
+| [self-improvement-ci](skills/self-improvement-ci/) | Records recurring failure patterns in CI using gh-aw |
+| [simplify-and-harden-ci](skills/simplify-and-harden-ci/) | Scans pull requests for simplification and security issues, with reporting and gating through gh-aw |
+| [learning-aggregator-ci](skills/learning-aggregator-ci/) | Finds patterns across sessions and reports gaps on a gh-aw schedule |
+| [eval-creator-ci](skills/eval-creator-ci/) | Runs eval checks on PRs and creates evals from promoted patterns on a gh-aw schedule |
 
-## Two Loops
+## Two loops
 
-The skills implement two feedback loops that improve agent output over time.
+The inner loop handles failures in the current session. The outer loop turns saved learnings into rules and regression tests for later sessions.
 
 **Inner loop** (within a session): detect → verify → recover
 **Outer loop** (across sessions): inspect → encode → regress-test
 
-Each skill prevents a distinct failure mode:
+Each skill addresses a different failure:
 
-| Skill | Loop | Failure it prevents |
+| Skill | Loop | Failure it addresses |
 |-------|------|-------------------|
-| `plan-interview` | — | Building the wrong thing |
+| `plan-interview` | Before the loops | Building the wrong thing |
 | `intent-framed-agent` | Inner (detect) | Scope creep during execution |
-| `context-surfing` | Inner (detect + recover) | Degraded-context corruption |
+| `context-surfing` | Inner (detect + recover) | Errors caused by degraded context |
 | `verify-gate` | Inner (verify + recover) | Shipping code that doesn't compile or pass tests |
-| `self-healing` | Inner (recover) | Mid-task failures becoming silent recurrences instead of verified, reusable fixes |
-| `simplify-and-harden` | Inner (detect) | Shipping rough/insecure code |
+| `self-healing` | Inner (recover) | Repeated failures with no verified fix saved for reuse |
+| `simplify-and-harden` | Inner (detect) | Shipping code without a quality or security review |
 | `self-improvement` | Bridge (capture) | Repeating the same mistakes |
-| `pre-flight-check` | Bridge (surface) | Starting work blind to known patterns |
+| `pre-flight-check` | Bridge (surface) | Starting work without checking known patterns |
 | `learning-aggregator` | Outer (inspect) | Accumulated learnings nobody reads |
 | `harness-updater` | Outer (encode) | Patterns that never become rules |
 | `eval-creator` | Outer (regress-test) | Fixed issues that silently regress |
 
-### Inner Loop Lifecycle
+### Inner loop lifecycle
 
 ```
 [plan-interview] → [intent-framed-agent] ⟂ [context-surfing] → [verify-gate] → [simplify-and-harden] → [self-improvement]
@@ -178,17 +185,17 @@ Each skill prevents a distinct failure mode:
                                                                   ↻ fix loop
 ```
 
-**Stage 1 — Planning** (manual gate): `plan-interview` runs a structured interview and produces a plan file in `docs/plans/`. This is the only skill that requires explicit invocation (`/plan-interview`). Downstream skills activate automatically when present, but each works independently if earlier stages are skipped.
+**Stage 1: Planning.** Invoke `/plan-interview` to run a structured interview and produce a plan file in `docs/plans/`. It's the only skill in this lifecycle that requires explicit invocation. Later skills activate automatically when present and can run even if you skip earlier stages.
 
-**Stage 2 — Execution** (concurrent monitoring): `intent-framed-agent` captures the intent frame and monitors *scope* drift. `context-surfing` monitors *context quality* drift. Both run simultaneously. If both fire at once, context-surfing's exit takes precedence — degraded context makes scope checks unreliable.
+**Stage 2: Execution.** `intent-framed-agent` records the intended outcome and monitors scope drift while `context-surfing` monitors context quality. If both detect drift at once, context-surfing's exit takes precedence because degraded context makes scope checks unreliable.
 
-**Stage 3 — Verification** (machine gate): `verify-gate` runs the project's compile, test, and lint commands. If any fail, `self-healing` takes the diagnosis loop: identify root cause, write the fix (script, env tweak, alt command), verify by re-running, and file a `HEAL-` entry to `.learnings/HEALS.md`. Verify-gate then re-checks. Up to 3 attempts per phase before abandoning. Only when all checks pass does work proceed to the quality review.
+**Stage 3: Verification.** `verify-gate` runs the project's compile, test, and lint commands. If a check fails, `self-healing` finds the cause, applies a fix, re-runs the failing operation, and records a `HEAL-` entry in `.learnings/HEALS.md`. Verify-gate then re-runs the checks, with up to 3 attempts per phase before abandoning. Work proceeds to quality review only when all checks pass.
 
-**Stage 4 — Review** (post-completion): `simplify-and-harden` runs four phases (simplify, harden, document, re-verify) on the completed work.
+**Stage 4: Review.** `simplify-and-harden` reviews the completed work in four phases: simplify, harden, document, and re-verify.
 
-**Stage 5 — Learning** (automatic): `self-improvement` captures recurring patterns from the session to `.learnings/`.
+**Stage 5: Learning.** `self-improvement` automatically records recurring patterns from the session in `.learnings/`.
 
-### Outer Loop Lifecycle
+### Outer loop lifecycle
 
 ```
 .learnings/ → [learning-aggregator] → [harness-updater] → [eval-creator]
@@ -196,13 +203,13 @@ Each skill prevents a distinct failure mode:
                                               [pre-flight-check] → next session
 ```
 
-**Inspect**: `learning-aggregator` reads all `.learnings/` files, groups by pattern, and ranks promotion candidates.
+**Inspect**: `learning-aggregator` reads all `.learnings/` files, groups entries by pattern, and ranks candidates for promotion into rules.
 
-**Encode**: `harness-updater` agent takes promotion candidates and applies them as rules in CLAUDE.md, AGENTS.md, and copilot-instructions.md.
+**Encode**: The `harness-updater` agent writes the selected patterns as rules in CLAUDE.md, AGENTS.md, and copilot-instructions.md.
 
 **Regress-test**: `eval-creator` turns promoted patterns into permanent test cases in `.evals/` and runs regression checks.
 
-**Bridge**: `pre-flight-check` surfaces accumulated learnings and eval status at session start, feeding outer loop improvements back into the inner loop.
+**Bridge**: `pre-flight-check` brings saved learnings and eval status into the next session so the agent can use them while it works.
 
 ### Artifacts at each stage
 
@@ -221,9 +228,9 @@ Each skill prevents a distinct failure mode:
 
 ### Pipeline depth
 
-Every skill works standalone. The pipeline is the recommended combination, not a hard dependency — each skill silently adapts when upstream artifacts are absent.
+Every skill works on its own. The pipeline is the recommended combination, but skills can run without artifacts from earlier stages.
 
-Match depth to complexity:
+Choose the depth based on the task:
 
 | Task | Skills |
 |------|--------|
@@ -231,16 +238,16 @@ Match depth to complexity:
 | Small (isolated bug fix) | `verify-gate` + `self-healing` (on failure) + `simplify-and-harden` |
 | Medium (feature, multi-file) | `intent-framed-agent` + `verify-gate` + `self-healing` + `simplify-and-harden` |
 | Large (refactor, new architecture) | Full inner loop pipeline |
-| Long-running (multi-session) | Full inner loop — `context-surfing` is critical |
+| Long-running (multi-session) | Full inner loop, including `context-surfing` for handoffs |
 | Periodic (weekly, sprint boundary) | Outer loop: `learning-aggregator` → `harness-updater` → `eval-creator` |
 
 ## Usage
 
 To use a skill, add it to your agent's configuration or reference it directly.
 
-### Hook Setup
+### Hook setup
 
-Skills with hooks register them via SKILL.md frontmatter when installed as a plugin. For standalone use, add to `.claude/settings.json`:
+Skills with hooks register them through SKILL.md frontmatter when installed as a plugin. For standalone use, add the following to `.claude/settings.json`:
 
 ```json
 {
@@ -282,18 +289,18 @@ Skills with hooks register them via SKILL.md frontmatter when installed as a plu
 
 | Hook | Script | Skill | Purpose |
 |------|--------|-------|---------|
-| UserPromptSubmit | `activator.sh` | self-improvement | Reminds to evaluate learnings after tasks |
+| UserPromptSubmit | `activator.sh` | self-improvement | Reminds the agent to review learnings after tasks |
 | SessionStart | `handoff-checker.sh` | context-surfing | Detects unread handoff files from previous context exits |
-| SessionStart | `pre-flight.sh` | pre-flight-check | Surfaces accumulated learnings, errors, and eval status |
+| SessionStart | `pre-flight.sh` | pre-flight-check | Reports saved learnings, errors, and eval status |
 | PostToolUse (Bash) | `error-detector.sh` | self-improvement | Detects command failures for automatic error logging |
 
-All hooks are lightweight (~50-200 tokens) and output nothing when no signals exist.
+Hook output is about 50 to 200 tokens. Hooks output nothing when they have nothing to report.
 
 ## Contributing
 
-Feel free to submit PRs with new skills or improvements to existing ones.
+PRs with new skills or improvements are welcome.
 
-`skills/` is canonical. Regenerate both native and portable bundles after changing a bundled skill:
+Edit skills in `skills/`, then regenerate the native and portable bundles after changing a bundled skill:
 
 ```bash
 ./scripts/sync-plugin.sh
@@ -308,7 +315,7 @@ uv run --with jsonschema==4.25.1 --with PyYAML==6.0.3 \
   python3 scripts/validate-agent-plugin.py
 ```
 
-The portable validator uses vendored copies of the published 1.0.0 schemas under `schemas/agent-plugins/1.0.0/`. Validate individual generated skills with the Agent Skills reference CLI when changing skill metadata:
+The portable validator uses local copies of the published 1.0.0 schemas in `schemas/agent-plugins/1.0.0/`. When changing skill metadata, also validate the generated skill with the Agent Skills reference CLI:
 
 ```bash
 uvx --from 'git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref' \
