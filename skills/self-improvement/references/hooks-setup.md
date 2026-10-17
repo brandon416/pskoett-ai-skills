@@ -110,6 +110,7 @@ Notes:
 - Codex's `UserPromptSubmit` adds plain stdout as developer context, so `activator.sh` works unchanged.
 - Codex's `PostToolUse` ignores plain stdout but accepts the same `hookSpecificOutput.additionalContext` JSON shape as Claude Code, which `error-detector.sh` emits.
 - Adjust the script path to your install layout (the example assumes the skill is installed under `.claude/skills/`).
+- If hooks are unavailable, add the self-improvement guidance to `AGENTS.md`.
 
 ## GitHub Copilot Setup
 
