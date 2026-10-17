@@ -98,6 +98,59 @@ Any claim about a host platform's API (hook events, payload fields, config file 
 - Source: repo analysis session 2026-06-12 (full report shared separately)
 - Related Files: skills/self-improvement/scripts/error-detector.sh, skills/self-improvement/references/hooks-setup.md, skills/self-healing/scripts/detect-failure.sh, skills/self-healing/references/hooks.md
 
+### Revalidation: 2026-10-17
+The June incident and its resolved status above are historical, not current API
+guidance. This review does not add recurrence. Current vendor documentation
+contradicts several of the previously corrected assumptions:
+
+- Claude failures use `PostToolUseFailure`, with top-level `error` and matching
+  `hookSpecificOutput.hookEventName`. Registering only `PostToolUse` misses them.
+- Codex hooks are enabled by default; `hooks` replaces the deprecated
+  `codex_hooks` feature key. Current docs include Windows configuration, although
+  this skill's scripts still need Bash. Hook definitions require trust review.
+- Copilot supports top-level `additionalContext` on `postToolUse`; command-hook
+  output on `userPromptSubmitted` is still ignored. Failures have a separate
+  `postToolUseFailure` event. The existing nested output is not its documented
+  context contract, and the script writes no audit or learning files.
+- `gh skill install` is built into the tested gh 2.99.0. Disposable local installs
+  confirmed `.claude/skills` for Claude and `.agents/skills` for Codex, Copilot,
+  and Amp. The old repository name redirects; use `pskoett/pskoett-ai-skills`.
+- `amp skill info self-improvement` resolves the checked-in `.agents` copy.
+  Loading the skill succeeds. This is model-selected instruction loading plus
+  repository AGENTS.md guidance, not a registered automatic shell hook.
+  `amp plugins list` showed no self-improvement lifecycle handler.
+
+Executed the unchanged detector with documentation-derived fixtures: bare
+Claude/Copilot failure statuses produced no reminder, a Claude diagnostic emitted
+the wrong event name, and a successful Copilot documentation example containing
+`Error:` emitted a false-positive reminder with no top-level `additionalContext`.
+Claude, Codex, and Copilot binaries are not installed here, so these are parser
+tests, not live end-to-end lifecycle verification.
+
+Sources checked:
+- https://code.claude.com/docs/en/hooks
+- https://learn.chatgpt.com/docs/hooks
+- https://docs.github.com/en/copilot/reference/hooks-reference
+- https://cli.github.com/manual/gh_skill_install
+- https://ampcode.com/docs/customize/skills
+- https://ampcode.com/docs/customize/plugins
+
+### Context Maintenance
+- Decay-Type: dependency
+- Decay-Rate: fast (agent releases change hook schemas and installation behavior)
+- Authority: vendor docs and installed CLI help above; Owner: repository maintainer
+- Revalidation: check current release docs and event fixtures before changing or recommending setup; if unavailable, mark uncertain rather than claiming cross-agent compatibility
+- Validation: verified for documentation comparison, installer destinations, Amp discovery/loading, and standalone fixtures only; Last-Validated: 2026-10-17; Evidence: sources and executed checks above
+- Disposition: revise; Application: applied locally to skill assets and mirrors
+
+### Skill Review Proposal
+- Approval: approved by the user's request to correct instructions and make an Amp plugin
+- Application: applied locally; Amp plugin publication remains separate
+- Targets: self-improvement hook summary, installation/hooks/Amp references, detector and Claude registration asset, generated/installed mirrors, and directly dependent setup references
+- Applied edits: canonical repository and explicit agent/scope commands; actual agent paths and trust requirements; separate Claude/Copilot failure contracts; one Python 3 parser rather than divergent jq/Python fallbacks; prompt-only Codex reminders because release 0.163.0 omits shell exit status from hook input; Amp discovery versus native per-turn context
+- Verification: the new detector regression tests failed against the old script (8 failures, 2 errors) and pass after the fix (13 cases across 3 tests). Six documented commands execute with paths containing spaces. Remote canonical-path installs succeed for self-improvement and self-improvement-ci. Bundle validators pass for 17 portable/native skills, and the installed .agents tree matches the source. Claude/Codex/Copilot lifecycle verification remains unavailable without those runtimes.
+- Amp plugin: prepared in the separate User Plugins clone; a Bun harness verified the hidden message return for three prompts and no prompt interpolation. Amp's CLI loaded a probe but did not dispatch its agent.start callback, so this is not end-to-end lifecycle proof. See HEAL-20261017-002. No plugin publication or automatic learning capture is claimed.
+
 ---
 
 

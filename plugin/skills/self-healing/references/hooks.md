@@ -30,21 +30,12 @@ Token overhead: ~80 tokens injected only on Bash failures. Silent on success.
 
 ### Combined with self-improvement
 
-If you're also using self-improvement's `PostToolUse` hook, chain them. Both are read-only on the tool result — order doesn't matter, but put self-healing first so its trigger fires before the broader self-improvement reminder.
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [{
-      "matcher": "Bash",
-      "hooks": [
-        { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/skills/self-healing/scripts/detect-failure.sh" },
-        { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/skills/self-improvement/scripts/error-detector.sh" }
-      ]
-    }]
-  }
-}
-```
+Do not chain self-improvement's detector onto `PostToolUse`. Its current
+[agent-specific setup](../../self-improvement/references/hooks-setup.md) uses
+failure events for Claude and Copilot, and prompt reminders only for Codex.
+That reminder already routes active recovery to self-healing when available,
+so a second reminder is unnecessary. This does not update the separate
+`detect-failure.sh` contract described above.
 
 ### Passing Active-Context into new-heal.sh
 

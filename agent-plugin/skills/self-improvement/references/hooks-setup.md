@@ -1,219 +1,188 @@
-# Hook Setup Guide (Multi-Agent)
+# Agent Activation and Hooks
 
-Configure automatic self-improvement triggers across AI coding agents. The same two scripts serve all supported agents:
+Checked against the sources below on 2026-10-17. Hooks are advisory reminders:
+the agent decides whether to load the skill and write a learning. These scripts
+do not write logs, modify tool results, or guarantee learning capture.
 
-- `scripts/activator.sh` — prompt-submit reminder to evaluate learnings
-- `scripts/error-detector.sh` — post-tool error detection on shell commands
+## Contents
 
-All supported agents deliver the hook payload as **JSON on stdin** (there is no `CLAUDE_TOOL_OUTPUT` environment variable anywhere). What differs per agent is the config file location, the event names, and whether hook output can inject context for the model:
+- [Requirements and paths](#requirements-and-paths)
+- [Claude Code](#claude-code)
+- [Codex CLI](#codex-cli)
+- [GitHub Copilot CLI and cloud agent](#github-copilot-cli-and-cloud-agent)
+- [Amp](#amp)
+- [Verification and troubleshooting](#verification-and-troubleshooting)
+- [Sources](#sources)
 
-| Agent | Config location | Prompt-submit event | Post-tool event | Can inject context? |
-|-------|----------------|--------------------:|----------------:|---------------------|
-| Claude Code | `.claude/settings.json` (project) or `~/.claude/settings.json` | `UserPromptSubmit` (plain stdout → context) | `PostToolUse`, matcher `Bash` (requires `additionalContext` JSON) | Yes |
-| Codex CLI | `<repo>/.codex/hooks.json` or `~/.codex/hooks.json`, behind `[features] codex_hooks = true` in `config.toml` | `UserPromptSubmit` (plain stdout → developer context) | `PostToolUse`, matcher `Bash` (requires `additionalContext` JSON) | Yes |
-| Copilot CLI / coding agent | `.github/hooks/*.json` (repo) or `~/.copilot/hooks/*.json` (personal) | `userPromptSubmitted` (output ignored) | `postToolUse`, no matcher (output ignored) | No — hooks are logging/policy only; use `.github/copilot-instructions.md` for the reminder |
+## Requirements and Paths
 
-`error-detector.sh` handles the payload differences itself: it reads `tool_response` (Claude Code / Codex) or `toolResult.textResultForLlm` plus `resultType` (Copilot), filters to shell tools in-script for agents without matchers, and emits the reminder as `hookSpecificOutput.additionalContext` JSON — a shape Claude Code and Codex both accept, and Copilot safely ignores.
+`activator.sh` needs Bash. `error-detector.sh` needs Bash and **Python 3**; it uses
+one JSON parser, not a jq fallback. Install dependencies in the environment where
+the agent runs. The shell examples below target Linux/macOS or a compatible Bash
+environment; they are not native Windows PowerShell scripts.
 
-## Install Location and Paths
+With explicit project-scoped installation (see [installation.md](installation.md)):
 
-The hook `command` must point at where the skill is actually installed:
+| Agent | Skill directory |
+|-------|-----------------|
+| Claude Code | `.claude/skills/self-improvement/` |
+| Codex, Copilot, Amp | `.agents/skills/self-improvement/` |
+| This repository's canonical source | `skills/self-improvement/` |
 
-| Install method | Script location |
-|----------------|-----------------|
-| `gh skill install` / `npx skills add` | `.claude/skills/self-improvement/scripts/` |
-| Plugin bundle (Claude Code) | `${CLAUDE_PLUGIN_ROOT}/skills/self-improvement/scripts/` (plugin hooks only) |
-| Repo vendored into project | `skills/self-improvement/scripts/` |
+Check the actual installed location. User installs and other installers may use
+different paths. Quote script paths containing spaces. Merge the examples into
+existing settings rather than overwriting unrelated hooks.
 
-For Claude Code, anchor project-relative paths with `${CLAUDE_PROJECT_DIR}` — it expands to the project root regardless of working directory. Codex runs hook commands from the session `cwd`, which may be a subdirectory; resolve from the git root (`$(git rev-parse --show-toplevel)/...`) or use home-anchored paths.
+## Claude Code
 
-## Claude Code Setup
-
-Create `.claude/settings.json` in your project root (path shown for a `gh skill install` layout — adjust per the table above):
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/.claude/skills/self-improvement/scripts/activator.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/.claude/skills/self-improvement/scripts/error-detector.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Notes:
-
-- `matcher` filters by tool name and applies to tool events like `PostToolUse`. `UserPromptSubmit` does not support matchers — it fires on every prompt.
-- For user-level activation, put the same structure in `~/.claude/settings.json` with `~/.claude/skills/...` paths.
-- For lower overhead, register only the UserPromptSubmit hook.
-
-## Codex CLI Setup
-
-Codex supports lifecycle hooks (experimental, currently not on Windows). Enable the feature flag in `~/.codex/config.toml`:
-
-```toml
-[features]
-codex_hooks = true
-```
-
-Then create `<repo>/.codex/hooks.json` (loads when the project `.codex/` layer is trusted) or `~/.codex/hooks.json`:
+Add to `.claude/settings.json` for a project install:
 
 ```json
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$(git rev-parse --show-toplevel)/.claude/skills/self-improvement/scripts/activator.sh\""
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$(git rev-parse --show-toplevel)/.claude/skills/self-improvement/scripts/error-detector.sh\"",
-            "statusMessage": "Checking for command errors"
-          }
-        ]
-      }
-    ]
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "\"${CLAUDE_PROJECT_DIR}/.claude/skills/self-improvement/scripts/activator.sh\""
+      }]
+    }],
+    "PostToolUseFailure": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "command": "\"${CLAUDE_PROJECT_DIR}/.claude/skills/self-improvement/scripts/error-detector.sh\" claude-code"
+      }]
+    }]
   }
 }
 ```
 
-Notes:
+- `UserPromptSubmit` adds the activator's plain stdout to model context. It does
+  not support a tool-name matcher or produce a visible chat message.
+- `PostToolUse` is the success event. Use **`PostToolUseFailure`** for failed Bash
+  calls, whose stdin includes `error`, `tool_name`, and `hook_event_name`.
+- The detector returns `hookSpecificOutput.additionalContext` with
+  `hookEventName: PostToolUseFailure`, exit 0. It ignores user interruptions and
+  non-shell tools. Pre-execution permission denials are not covered by this event.
+- For user-wide setup, use `~/.claude/settings.json` and the actual absolute or
+  home-anchored script path. Interactive settings-file hooks wait for workspace
+  trust; non-interactive/SDK sessions have different trust behavior.
+- The native Claude plugin's skill-scoped hooks are generated from
+  `assets/claude-hooks.json`, using `CLAUDE_PLUGIN_ROOT`. They activate when the
+  skill is loaded. Do not also install duplicate settings-file hooks. The JSON
+  asset is not auto-registered by portable Agent Skills clients.
 
-- Codex's `UserPromptSubmit` adds plain stdout as developer context, so `activator.sh` works unchanged.
-- Codex's `PostToolUse` ignores plain stdout but accepts the same `hookSpecificOutput.additionalContext` JSON shape as Claude Code, which `error-detector.sh` emits.
-- Adjust the script path to your install layout (the example assumes the skill is installed under `.claude/skills/`).
-- If hooks are unavailable, add the self-improvement guidance to `AGENTS.md`.
+## Codex CLI
 
-## GitHub Copilot Setup
+Hooks are enabled by default in the current release. If explicitly configuring
+them, use `[features] hooks = true` in `config.toml`; `codex_hooks` is a deprecated
+alias. Review and trust hook definitions through `/hooks`. Project config also
+requires project trust. Changing a trusted definition requires review again.
 
-Copilot supports hooks in `.github/hooks/*.json` (repo-wide) or `~/.copilot/hooks/*.json` (Copilot CLI personal), but hook output is **ignored** for `userPromptSubmitted` and `postToolUse` — hooks can log and enforce policy, not inject context. So for Copilot:
+Use `<repo>/.codex/hooks.json` (or `~/.codex/hooks.json` with an appropriate path):
 
-1. Keep the reminder in `.github/copilot-instructions.md` (this is the only channel that reaches the model):
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "\"$(git rev-parse --show-toplevel)/.agents/skills/self-improvement/scripts/activator.sh\""
+      }]
+    }]
+  }
+}
+```
+
+Codex adds this plain stdout as developer context. Commands run from the session
+working directory, so the example resolves the Git root; outside Git, use an
+absolute path. Codex also supports inline `[hooks]` config and Windows-specific
+commands, but these Bash scripts still need a compatible environment.
+
+**Do not register this detector on Codex `PostToolUse`.** In release 0.163.0,
+unified-exec shell commands match `Bash`, but their hook `tool_response` contains
+only output text, without exit status. Silent exit 0 and exit 7 are indistinguishable.
+Running commands defer the hook until completion, potentially via `write_stdin`.
+Words such as `Error:` are not proof of failure. Use the prompt reminder and
+`AGENTS.md` guidance; do not claim reliable automatic failure detection from this
+payload. Recheck the release contract before adding it in a future version.
+
+## GitHub Copilot CLI and Cloud Agent
+
+For reminders, keep this in `.github/copilot-instructions.md`:
 
 ```markdown
-## Self-Improvement
-
-After completing tasks that involved:
-- Debugging non-obvious issues
-- Discovering workarounds
-- Learning project-specific patterns
-- Resolving unexpected errors
-
-Consider logging the learning to `.learnings/` using the format from the self-improvement skill.
-
-For high-value learnings that would benefit other sessions, consider skill extraction.
+After relevant corrections, discoveries, or unexpected failures, use the
+self-improvement skill to evaluate what belongs in .learnings/. Use self-healing
+for active recovery when available. Do not duplicate heal entries or save secrets.
 ```
 
-2. Optionally register the detector for audit logging (its JSON output is discarded, which is harmless):
+For failure-specific guidance, create `.github/hooks/self-improvement.json`:
 
 ```json
 {
   "version": 1,
   "hooks": {
-    "postToolUse": [
-      { "type": "command", "bash": "./.claude/skills/self-improvement/scripts/error-detector.sh" }
-    ]
+    "postToolUseFailure": [{
+      "type": "command",
+      "bash": "\"./.agents/skills/self-improvement/scripts/error-detector.sh\" github-copilot",
+      "cwd": "."
+    }]
   }
 }
 ```
 
-## Verification
+- The camelCase failure payload includes `toolName` and `error`. The detector
+  handles shell tools and also accepts the PascalCase event's snake_case payload.
+- For this **failure event**, exit **2** with plain stdout appends recovery
+  guidance to the failure shown to the model. The detector deliberately uses that
+  contract. Do not wrap it in a command that swallows or changes its exit status.
+- Successful `postToolUse` hooks can inject **top-level** `additionalContext` JSON
+  or modify a result. That differs from Claude's nested envelope. We do not
+  register a success hook or change results. Command-hook output from
+  `userPromptSubmitted` is ignored, so do not wire `activator.sh` to that event.
+- CLI supports personal `~/.copilot/hooks/*.json` (or `$COPILOT_HOME/hooks/`) and
+  additional settings/plugin sources. Use actual installed paths for personal
+  hooks. Cloud agent reads repository `.github/hooks/*.json`; commit the skill
+  and config so its Linux sandbox has them. Personal installs do not transfer.
+- Cloud sandbox files are ephemeral. A reminder is not a persisted audit log.
+  These examples use `bash`, not a Windows `powershell` hook command.
 
-### Test Activator Hook (Claude Code / Codex)
+## Amp
 
-1. Enable the hook configuration
-2. Start a new session
-3. Send any prompt
-4. Verify you see `<self-improvement-reminder>` in the context
+Amp discovers `.agents/skills/self-improvement` and loads its instructions on
+demand. Claude/Copilot hook JSON does not enable an Amp lifecycle plugin. See
+[amp-setup.md](amp-setup.md) for native per-turn reminders and verification.
 
-### Test Error Detector Hook
+## Verification and Troubleshooting
 
-Standalone test with a fake Claude Code / Codex payload:
-
-```bash
-echo '{"tool_name":"Bash","tool_response":"ls: /nonexistent/path: No such file or directory"}' \
-  | ./scripts/error-detector.sh
-```
-
-And with a fake Copilot payload (tool filter + failure path):
-
-```bash
-echo '{"toolName":"bash","toolResult":{"resultType":"failure","textResultForLlm":"npm ERR! missing script"}}' \
-  | ./scripts/error-detector.sh
-```
-
-Expected: a JSON object containing `additionalContext` in both cases. In a live Claude Code or Codex session the reminder reaches the model on the next turn as injected context, not as visible transcript output.
-
-### Dry Run Extract Script
+Run from this repository root:
 
 ```bash
-./scripts/extract-skill.sh test-skill --dry-run
+python3 scripts/test-self-improvement-hooks.py
+bash -n skills/self-improvement/scripts/error-detector.sh
 ```
 
-Expected output shows the skill scaffold that would be created.
+The regression tests check failure guidance, success/interrupt controls,
+agent-specific output and exit codes, and absence of file writes. These are
+standalone contract tests, **not live agent lifecycle tests**.
 
-## Troubleshooting
+After installing hooks, start a session, review trust prompts, submit a prompt,
+then ask the agent to run a harmless failing shell command such as `exit 7` in a
+disposable directory. Inspect the host's hook/debug output and model context.
+For Codex, verify only the prompt reminder, not automatic failure detection.
+Context injection need not appear as a visible transcript message.
 
-### Hook Not Triggering
+If nothing fires: check the event name, trusted config, actual quoted script path,
+executable permission, Bash/Python availability, and whether the plugin skill has
+been loaded. Disable by removing the relevant registration, not by adding comments
+to JSON. Keep failure data out of logs unless explicitly needed and redacted.
 
-1. **Check script permissions**: `chmod +x scripts/*.sh`
-2. **Verify path**: confirm the path matches your install method (see Install Location and Paths) and is anchored (`${CLAUDE_PROJECT_DIR}`, git root, or absolute)
-3. **Codex only**: confirm `codex_hooks = true` is set and the project `.codex/` layer is trusted
-4. **Check settings location**: project vs user-level
-5. **Restart session**: hooks are loaded at session start
+## Sources
 
-### Permission Denied
-
-```bash
-chmod +x scripts/activator.sh scripts/error-detector.sh scripts/extract-skill.sh
-```
-
-### Too Much Overhead
-
-Use the minimal setup (prompt-submit hook only), or edit `activator.sh` to output less text. Prompt-content filtering is not possible on any of the three agents: none of them support matchers on the prompt-submit event.
-
-## Hook Output Budget
-
-The activator is designed to be lightweight:
-- **Target**: ~50-100 tokens per activation
-- **Content**: Structured reminder, not verbose instructions
-- **Format**: XML tags for easy parsing
-
-## Security Considerations
-
-- Hook scripts run with the agent's permissions
-- The scripts only read the stdin payload and write text/JSON to stdout; they don't modify files or run project commands
-- All hooks are opt-in (you must configure them explicitly)
-- Codex project-local hooks only load when the project `.codex/` layer is trusted
-
-## Disabling Hooks
-
-Remove the relevant event key from the hooks config file, or delete the file. JSON does not support comments, so "commenting out" a section will break parsing of the whole file.
+- [Claude hooks](https://code.claude.com/docs/en/hooks)
+- [Codex release behavior](https://learn.chatgpt.com/docs/hooks)
+- [Codex 0.163.0 output-only hook payload](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/core/src/tools/context.rs#L432-L445)
+- [Copilot hook events and output](https://docs.github.com/en/copilot/reference/hooks-reference)
+- [Amp skills](https://ampcode.com/docs/customize/skills)
+- [Amp plugins](https://ampcode.com/docs/customize/plugins)

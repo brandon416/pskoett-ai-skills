@@ -41,6 +41,20 @@ def main() -> int:
                 (generated / "scripts" / "run.sh").stat().st_mode
             ) == 0o755
 
+            native = root / "native" / "sample"
+            write(
+                native / "SKILL.md",
+                "---\nname: sample\ndescription: Old.\nuser-invocable: false\nhooks:\n  PostToolUse: []\n---\n",
+            )
+            write(
+                source / "assets" / "claude-hooks.json",
+                '{"hooks": {"PostToolUseFailure": [{"matcher": "Bash", "hooks": []}]}}\n',
+            )
+            sync_plugin.sync_native_skill("sample", source, native)
+            metadata, _ = sync_plugin.split_frontmatter((native / "SKILL.md").read_text())
+            assert metadata["hooks"] == {"PostToolUseFailure": [{"matcher": "Bash", "hooks": []}]}
+            assert metadata["user-invocable"] is False
+
             stale = portable_skills / "stale"
             stale.mkdir()
             write(portable_skills / "unexpected.txt", "stale\n")

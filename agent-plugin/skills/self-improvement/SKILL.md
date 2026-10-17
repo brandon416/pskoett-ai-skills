@@ -396,7 +396,7 @@ Don't add to .gitignore - learnings become shared knowledge.
 
 ## Hook Integration
 
-Automatic reminders are **opt-in**. Claude Code and Codex CLI can inject reminders through hooks; Copilot uses `.github/copilot-instructions.md` because its hook output does not inject context. See [references/hooks-setup.md](references/hooks-setup.md) when configuring activation, script paths, or troubleshooting.
+Automatic reminders are **opt-in**. Claude Code, Codex CLI, and Copilot have different event and output contracts; see [references/hooks-setup.md](references/hooks-setup.md). Amp loads skills on demand and uses a separate native plugin for per-turn reminders; see [references/amp-setup.md](references/amp-setup.md). Reminders do not write learnings or guarantee capture.
 
 ## Automatic Skill Extraction
 

@@ -257,17 +257,16 @@ To use a skill, add it to your agent's configuration or reference it directly.
 
 ### Hook setup
 
-Skills with hooks register them through SKILL.md frontmatter when installed as a plugin. For standalone use, add the following to `.claude/settings.json`:
+Native Claude plugin skills register scoped hooks through SKILL.md frontmatter when loaded. For standalone use from this repository, add the following to `.claude/settings.json`. For installed skill paths and other agents, see [self-improvement setup](skills/self-improvement/references/hooks-setup.md).
 
 ```json
 {
   "hooks": {
     "UserPromptSubmit": [{
-      "matcher": "",
       "hooks": [
         {
           "type": "command",
-          "command": "./skills/self-improvement/scripts/activator.sh"
+          "command": "\"${CLAUDE_PROJECT_DIR}/skills/self-improvement/scripts/activator.sh\""
         }
       ]
     }],
@@ -284,12 +283,12 @@ Skills with hooks register them through SKILL.md frontmatter when installed as a
         }
       ]
     }],
-    "PostToolUse": [{
+    "PostToolUseFailure": [{
       "matcher": "Bash",
       "hooks": [
         {
           "type": "command",
-          "command": "./skills/self-improvement/scripts/error-detector.sh"
+          "command": "\"${CLAUDE_PROJECT_DIR}/skills/self-improvement/scripts/error-detector.sh\" claude-code"
         }
       ]
     }]
@@ -302,7 +301,7 @@ Skills with hooks register them through SKILL.md frontmatter when installed as a
 | UserPromptSubmit | `activator.sh` | self-improvement | Reminds the agent to review learnings after tasks |
 | SessionStart | `handoff-checker.sh` | context-surfing | Detects unread handoff files from previous context exits |
 | SessionStart | `pre-flight.sh` | pre-flight-check | Reports saved learnings, errors, and eval status |
-| PostToolUse (Bash) | `error-detector.sh` | self-improvement | Detects command failures for automatic error logging |
+| PostToolUseFailure (Bash) | `error-detector.sh` | self-improvement | Adds failure guidance; does not write learning files |
 
 Hook output is about 50 to 200 tokens. Hooks output nothing when they have nothing to report.
 

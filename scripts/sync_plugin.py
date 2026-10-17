@@ -13,6 +13,7 @@ Usage:
     python3 scripts/sync_plugin.py [skill-name ...]
       no args -> sync every skill present in both trees
 """
+import json
 import re
 import shutil
 import sys
@@ -72,6 +73,11 @@ def build_skill_md(src_md: Path, dst_md: Path) -> str:
     for key in PLUGIN_KEYS:
         if key in dst_fm and key not in new_fm:
             new_fm[key] = dst_fm[key]
+
+    # Skills can own their Claude registration without hand-editing generated files.
+    hooks_path = src_md.parent / "assets" / "claude-hooks.json"
+    if hooks_path.is_file():
+        new_fm["hooks"] = json.loads(hooks_path.read_text(encoding="utf-8"))["hooks"]
 
     # Stable, readable order: name, description, plugin keys, then anything else.
     ordered = {}

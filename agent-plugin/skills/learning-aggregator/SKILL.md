@@ -249,7 +249,7 @@ For each checkpoint within the time window, parse the raw transcript and look fo
 
 1. **Tool call repetition** — same tool + similar args > 3 times → likely a retry loop. Pattern-key: `retry-loop.<tool>`
 2. **User correction markers** — user messages containing "no", "wrong", "actually", "instead" immediately after an agent action → Pattern-key: `correction.<area>`
-3. **Error patterns in tool output** — matches against the same regex set as `error-detector.sh` (error, failed, Traceback, etc.) → Pattern-key: `error.<category>`
+3. **Error patterns in tool output** — error, failed, Traceback, etc. are candidate signals, not proof of failure; corroborate with the recorded tool status → Pattern-key: `error.<category>`
 4. **Handoff triggers** — context-surfing exit events and which drift signals fired → Pattern-key: `drift.<signal>`
 5. **Approach changes** — agent switching strategy mid-task without explicit pivot → Pattern-key: `approach-switch.<domain>`
 6. **Token anomalies** — sessions with token count > 2x the median for similar task types → Pattern-key: `cost.<task-type>`
