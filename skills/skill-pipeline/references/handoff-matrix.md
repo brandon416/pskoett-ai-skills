@@ -7,7 +7,8 @@ Artifact flow, signal routing, precedence rules, and budget constraints across t
 | Producing Skill | Artifact | Consuming Skill(s) |
 |----------------|----------|-------------------|
 | `plan-interview` | `docs/plans/plan-NNN-<slug>.md` | `intent-framed-agent` (context), `context-surfing` (wave anchor), optional `control-session-orchestrator` work-unit breakdown |
-| `intent-framed-agent` | Intent Frame (in-session) | `context-surfing` (wave anchor), handoff files on exit |
+| `intent-framed-agent` | Intent Frame (in-session) | `session-context` (retrieval task and scope), then `context-surfing` (wave anchor), handoff files on exit |
+| `session-context` | Cited prior-session brief or explicit no-match/unavailable status (in-session) | `intent-framed-agent` (refine approach; resolve material conflicts without treating history as authority) |
 | `context-surfing` | `.context-surfing/handoff-[slug]-[timestamp].md` | Next session (resume), `plan-interview` (replanning input) |
 | `simplify-and-harden` | `learning_loop.candidates` (YAML) | `self-improvement` (pattern logging) |
 | `simplify-and-harden-ci` | PR comment + check run + YAML findings | `self-improvement-ci` (recurrence tracking) |
@@ -21,6 +22,8 @@ Artifact flow, signal routing, precedence rules, and budget constraints across t
 | Task classified | `skill-pipeline` | Activate appropriate skills |
 | Plan approved by user | `plan-interview` | Auto-start execution; a faithful intent frame reuses this approval |
 | Planning-to-execution transition | User cues ("go ahead", "implement this") | Activate `intent-framed-agent` |
+| Initial intent frame emitted | `intent-framed-agent` | Invoke `session-context` once when available, before finalizing the approach |
+| Prior-session retrieval complete or unavailable | `session-context` | Refine the same frame and continue; ask only about material unresolved conflicts |
 | Large/Long-running task or explicit context-pressure signal | `skill-pipeline` or user | Activate `context-surfing` |
 | Task completion (exit code 0, PR ready) | Implementation | Activate `simplify-and-harden` for non-trivial executable changes or high-impact configuration/policy changes |
 | Intent Resolution emitted | `intent-framed-agent` | Signal `simplify-and-harden` readiness |
@@ -44,6 +47,7 @@ Artifact flow, signal routing, precedence rules, and budget constraints across t
 
 | Skill | Constraint | Value |
 |-------|-----------|-------|
+| `session-context` | Default task-wide retrieval and brief | Two search rounds, three sessions read, roughly 600 tokens; reuse on resume |
 | `simplify-and-harden` | Max additional diff | 20% of original diff size |
 | `simplify-and-harden` | Max execution time | 60 seconds |
 | `simplify-and-harden` | Document pass | Max 5 comments |

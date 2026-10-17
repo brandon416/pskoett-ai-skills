@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.7.0 - 2026-10-17
+
+### Added
+- **Session Context (beta)**: bounded, cited task-relevant session retrieval after the initial intent frame and before finalizing the approach. Included in native and portable bundles, with no branch requirement, history service, or automatic startup hook.
+- **Routing evals**: scenarios for ordered retrieval, unavailable versus irrelevant history, stale instructions and sharing boundaries, and targeted clarification.
+
+### Changed
+- **Intent framing**: clarify only material gaps, reuse clear implementation requests and approved plans, and refine the same frame after session-context. `plan-interview` remains optional and explicitly invoked.
+- **Pipeline integration**: route session-context through intent framing once, preserve approved decisions, and reuse findings on resume and across related work units.
+- **Version alignment**: update native, portable, and marketplace manifests to 2.7.0. Retrieval benefit over a no-history baseline remains unmeasured.
+
+---
+
 ## 2.6.2 — 2026-10-03
 
 ### Added

@@ -44,7 +44,9 @@ The skill's job: ride as long as the wave is good, exit before it closes out.
 ## Lifecycle Position
 
 ```
-[plan-interview] → [intent-framed-agent] → [context-surfing ACTIVE] → [verify-gate] → [simplify-and-harden] → [self-improvement]
+[plan-interview (optional)] → [initial intent frame] → [session-context]
+  → [finalize approach] → [context-surfing ACTIVE during execution]
+  → [verify-gate] → [simplify-and-harden] → [self-improvement]
 ```
 
 Context Surfing is an optional execution layer for work with meaningful context
@@ -74,7 +76,7 @@ Not every task needs every skill in the pipeline. Match pipeline depth to task c
 |-----------|---------------|
 | Trivial (rename, typo fix) | None — just do it |
 | Small (isolated bug fix, single-file change) | `verify-gate` + `simplify-and-harden` |
-| Medium (feature in known area, multi-file) | `intent-framed-agent` + `verify-gate` + `simplify-and-harden` |
+| Medium (feature in known area, multi-file) | `intent-framed-agent` + `session-context` + `verify-gate` + `simplify-and-harden` |
 | Large (complex refactor, new architecture, unfamiliar codebase) | Full pipeline |
 | Long-running (multi-session, high context pressure) | Full pipeline with `context-surfing` as the critical skill |
 
@@ -366,12 +368,13 @@ No handoff file needed for clean completions — just the outputs and a one-line
 
 ### Pipeline position
 1. `plan-interview` (optional, for requirement shaping)
-2. `intent-framed-agent` (execution contract + scope drift monitoring)
-3. `context-surfing` (optional context-quality monitoring for Large,
+2. `intent-framed-agent` (initial execution contract + scope drift monitoring)
+3. `session-context` (prior-session evidence before finalizing the approach)
+4. `context-surfing` (optional context-quality monitoring for Large,
    Long-running, or explicitly context-sensitive execution)
-4. `verify-gate` (machine verification: compile + test + lint)
-5. `simplify-and-harden` (post-completion quality/security pass)
-6. `self-improvement` (capture recurring patterns and promote durable rules)
+5. `verify-gate` (machine verification: compile + test + lint)
+6. `simplify-and-harden` (post-completion quality/security pass)
+7. `self-improvement` (capture recurring patterns and promote durable rules)
 
 ---
 

@@ -6,7 +6,9 @@ I use this repository to build and test skills for AI agents. The skills follow 
 
 Each skill addresses a problem I want agents to handle more consistently. Before codebase exploration, `plan-interview` helps the user and agent agree on constraints, scope, risk, and success criteria. It also checks whether a preparatory refactor should come first.
 
-During execution, `intent-framed-agent` records the intended outcome and watches for scope drift. `context-surfing` monitors context quality and prepares a handoff when it degrades. `verify-gate` runs compile, test, and lint checks so the agent can catch failures without waiting for you to point them out.
+`plan-interview` stays optional. `intent-framed-agent` asks about material gaps and records an initial frame without requiring a confirmation round for a clear request. `session-context` then searches relevant prior sessions before the agent finalizes its approach. It returns cited evidence, not new instructions, and adds no historical brief when nothing useful matches.
+
+During execution, `intent-framed-agent` watches for scope drift. `context-surfing` monitors context quality and prepares a handoff when it degrades. `verify-gate` runs compile, test, and lint checks so the agent can catch failures without waiting for you to point them out.
 
 When something fails, `self-healing` diagnoses the problem, verifies the fix, and saves it for reuse. After implementation, `simplify-and-harden` reviews quality and security while the agent still has the task context. `self-improvement` records mistakes and lessons for future sessions.
 
@@ -135,6 +137,7 @@ skills/
 | [plan-interview](skills/plan-interview/) | Runs a structured interview before planning non-trivial implementations |
 | [self-healing](skills/self-healing/) | Diagnoses, patches, verifies, and records fixes when a command, test, helper, environment, or external service fails during a task |
 | [self-improvement](skills/self-improvement/) | Captures learnings and errors with hook-based activation and automatic skill extraction |
+| [session-context](skills/session-context/) | Retrieves a bounded, cited prior-session brief after the initial intent frame and before finalizing the approach (beta) |
 | [skill-pipeline](skills/skill-pipeline/) | Classifies tasks and selects which skills to run and how much review each task needs |
 | [simplify-and-harden](skills/simplify-and-harden/) | Reviews completed work to simplify code, address security risks, add brief documentation, and re-run checks |
 | [verify-gate](skills/verify-gate/) | Runs compile, test, and lint checks between implementation and quality review, with a fix loop for failures |
@@ -173,6 +176,7 @@ Each skill addresses a different failure:
 | `simplify-and-harden` | Inner (detect) | Shipping code without a quality or security review |
 | `self-improvement` | Bridge (capture) | Repeating the same mistakes |
 | `pre-flight-check` | Bridge (surface) | Starting work without checking known patterns |
+| `session-context` | Bridge (retrieve) | Missing task-relevant decisions and failed approaches from prior sessions |
 | `learning-aggregator` | Outer (inspect) | Accumulated learnings nobody reads |
 | `harness-updater` | Outer (encode) | Patterns that never become rules |
 | `eval-creator` | Outer (regress-test) | Fixed issues that silently regress |
@@ -180,14 +184,17 @@ Each skill addresses a different failure:
 ### Inner loop lifecycle
 
 ```
-[plan-interview] → [intent-framed-agent] ⟂ [context-surfing] → [verify-gate] → [simplify-and-harden] → [self-improvement]
-                                          ↑   concurrent    ↑    ↳ [self-healing] (on failure: diagnose → patch → verify → file HEAL)
-                                                                  ↻ fix loop
+[plan-interview (optional)] → [initial intent frame] → [session-context]
+  → [finalize approach] → [execution: intent monitoring + optional context-surfing]
+  → [verify-gate] → [simplify-and-harden] → [self-improvement]
+       ↳ on failure → [self-healing] → re-verify
 ```
 
-**Stage 1: Planning.** Invoke `/plan-interview` to run a structured interview and produce a plan file in `docs/plans/`. It's the only skill in this lifecycle that requires explicit invocation. Later skills activate automatically when present and can run even if you skip earlier stages.
+**Stage 1: Planning (optional).** Invoke `/plan-interview` to run a structured interview and produce a plan file in `docs/plans/`. It remains explicitly invoked, not a prerequisite for intent framing.
 
-**Stage 2: Execution.** `intent-framed-agent` records the intended outcome and monitors scope drift while `context-surfing` monitors context quality. If both detect drift at once, context-surfing's exit takes precedence because degraded context makes scope checks unreliable.
+**Stage 2: Intent, context, then execution.** `intent-framed-agent` establishes the goal, boundaries, and success criteria, asking only about material unresolved decisions. After the initial frame it invokes `session-context` once, then finalizes the approach in that same frame. A clear request or approved plan needs no duplicate confirmation. History is evidence, not authority; material conflicts go back to the user. Missing history or no useful matches does not block implementation. During execution, intent monitoring tracks scope and `context-surfing` joins when context pressure warrants it. If both detect drift at once, context-surfing's exit takes precedence.
+
+Session-context is beta and uses available, authorized history tools. It searches the current repo first, widens only for a concrete relationship, and never requires branches. Its starting budget is two search rounds, three sessions, and a roughly 600-token brief. Pipeline invocation is agent-followed guidance, not a guaranteed startup hook. No history service or automatic hook is installed, and retrieval benefit has not yet been measured against a no-history baseline.
 
 **Stage 3: Verification.** `verify-gate` runs the project's compile, test, and lint commands. If a check fails, `self-healing` finds the cause, applies a fix, re-runs the failing operation, and records a `HEAL-` entry in `.learnings/HEALS.md`. Verify-gate then re-runs the checks, with up to 3 attempts per phase before abandoning. Work proceeds to quality review only when all checks pass.
 
@@ -211,12 +218,15 @@ Each skill addresses a different failure:
 
 **Bridge**: `pre-flight-check` brings saved learnings and eval status into the next session so the agent can use them while it works.
 
+`session-context` complements this bridge after intent capture by finding additional task-specific evidence in prior conversations. It does not write memory or duplicate findings already supplied by pre-flight-check.
+
 ### Artifacts at each stage
 
 | Stage | Artifact | Location |
 |-------|----------|----------|
 | Planning | Plan file | `docs/plans/plan-NNN-<slug>.md` |
 | Execution | Intent frame | Emitted in session output |
+| Before implementation | Prior-session brief or no-match/unavailable status | Emitted in session output, not persisted by the skill |
 | Execution | Handoff file (on drift exit) | `.context-surfing/handoff-<slug>-<timestamp>.md` |
 | Verification | Pass/fail signal | Emitted in session output |
 | Recovery | Verified heal entry + (lazy) artifacts | `.learnings/HEALS.md`, `.learnings/heals/<HEAL-ID>/` |
@@ -236,7 +246,7 @@ Choose the depth based on the task:
 |------|--------|
 | Trivial (typo fix, rename) | None |
 | Small (isolated bug fix) | `verify-gate` + `self-healing` (on failure) + `simplify-and-harden` |
-| Medium (feature, multi-file) | `intent-framed-agent` + `verify-gate` + `self-healing` + `simplify-and-harden` |
+| Medium (feature, multi-file) | `intent-framed-agent` + `session-context` + `verify-gate` + `self-healing` + `simplify-and-harden` |
 | Large (refactor, new architecture) | Full inner loop pipeline |
 | Long-running (multi-session) | Full inner loop, including `context-surfing` for handoffs |
 | Periodic (weekly, sprint boundary) | Outer loop: `learning-aggregator` → `harness-updater` → `eval-creator` |

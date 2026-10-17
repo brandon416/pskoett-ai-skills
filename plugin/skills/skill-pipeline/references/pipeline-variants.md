@@ -6,14 +6,16 @@ Detailed walkthroughs of each pipeline variant. The orchestrator in SKILL.md sel
 
 For single-feature depth work. Not all stages activate for every task class — see the activation table in SKILL.md for which skills apply at each depth.
 
-- **Medium:** `intent-framed-agent` + `verify-gate` + `simplify-and-harden` (no planning, no context-surfing)
+- **Medium:** `intent-framed-agent` + `session-context` + `verify-gate` + `simplify-and-harden` (no required interview or context-surfing)
 - **Large:** Full pipeline including `plan-interview` (recommended) and `context-surfing`
 - **Long-running:** Full pipeline with `context-surfing` as the critical skill
 
 Full pipeline (Large/Long-running):
 ```
-[plan-interview] → [intent-framed-agent] ⟂ [context-surfing] → [verify-gate] → [simplify-and-harden] → [self-improvement]
-                                                                    ↳ on failure → [self-healing] (diagnose → patch → verify → file HEAL) → re-verify
+[plan-interview (optional)] → [initial intent frame] → [session-context]
+  → [finalize approach] → [execution: intent monitoring + context-surfing]
+  → [verify-gate] → [simplify-and-harden] → [self-improvement]
+       ↳ on failure → [self-healing] → re-verify
 ```
 
 ### Step-by-step
@@ -22,7 +24,14 @@ Full pipeline (Large/Long-running):
 
 2. **Plan (optional, recommended for Large)** — User invokes `/plan-interview`. Structured interview across 4 domains (technical constraints, scope boundaries, risk tolerance, success criteria). Produces `docs/plans/plan-NNN-<slug>.md` with iterative refinement.
 
-3. **Intent Frame** — `intent-framed-agent` activates at the planning-to-execution transition. It emits an Intent Frame with outcome, approach, constraints, success criteria, and complexity. An approved plan authorizes a faithful frame without a duplicate confirmation; ask only if the frame introduces a material change or unresolved assumption.
+3. **Intent Frame and Session Context** — `intent-framed-agent` clarifies material
+   gaps and emits an initial frame with outcome, provisional or approved approach,
+   constraints, success criteria, and complexity. A clear implementation request
+   or approved plan authorizes a faithful frame without duplicate confirmation.
+   Intent framing then invokes `session-context` once to retrieve bounded, cited
+   historical evidence. Finalize the approach in the same frame; ask only when a
+   material decision remains unresolved. Missing history or no useful matches
+   does not block work, and existing approval is not reopened without a conflict.
 
 4. **Execute with monitoring** — Implementation proceeds. Intent monitoring is
    active; context monitoring joins for Large, Long-running, or explicitly
@@ -56,7 +65,7 @@ If a prior session produced a handoff file (`.context-surfing/handoff-[slug]-[ti
 1. Read handoff file completely before doing anything else
 2. If original session used full pipeline: reuse its approved plan and re-establish the intent frame from the handoff unless material decisions remain
 3. If standalone: use the handoff's task description and drift notes to re-ground directly
-4. Pick up context-surfing from recommended re-entry point
+4. Reuse existing session-context findings; retrieve only for a concrete new gap. Pick up context-surfing from recommended re-entry point
 5. Mark the handoff consumed only after re-entry succeeds
 
 ---
@@ -77,7 +86,7 @@ For breadth work (Batch tasks: multiple features, issue triage, batch hardening)
 
 3. **Choose execution mode** — Use `control-session-orchestrator` when persistent multi-session coordination is available and useful. Otherwise process units sequentially.
 
-4. **Implement** — Each unit follows the appropriate standard-pipeline depth and preserves umbrella constraints. Do not let workers approve their own behavior-changing refactors.
+4. **Implement** — Each unit follows the appropriate standard-pipeline depth and preserves umbrella constraints. Share relevant session-context findings within the permitted audience; workers search only for unit-specific gaps rather than duplicating the umbrella search. Do not let workers approve their own behavior-changing refactors.
 
 5. **Verify** — Run `verify-gate` for each completed unit and again on the combined result.
 

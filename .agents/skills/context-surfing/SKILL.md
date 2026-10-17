@@ -40,7 +40,8 @@ The skill's job: ride as long as the wave is good, exit before it closes out.
 ## Lifecycle Position
 
 ```
-[plan-interview] → [intent-framed-agent] → [context-surfing ACTIVE] → [simplify-and-harden] → [self-improvement]
+[plan-interview (optional)] → [initial intent frame] → [session-context]
+  → [finalize approach] → [context-surfing ACTIVE] → [simplify-and-harden] → [self-improvement]
 ```
 
 Context Surfing is the execution layer. It wraps all work between intent capture and post-completion review. Simplify-and-harden and self-improvement are the next steps in the pipeline — they run after context-surfing completes, not as conditions that end it.
@@ -313,10 +314,11 @@ No handoff file needed for clean completions — just the outputs and a one-line
 
 ### Pipeline position
 1. `plan-interview` (optional, for requirement shaping)
-2. `intent-framed-agent` (execution contract + scope drift monitoring)
-3. `context-surfing` (context quality monitoring — runs concurrently with intent-framed-agent during execution)
-4. `simplify-and-harden` (post-completion quality/security pass)
-5. `self-improvement` (capture recurring patterns and promote durable rules)
+2. `intent-framed-agent` (initial execution contract + scope drift monitoring)
+3. `session-context` (prior-session evidence before finalizing the approach)
+4. `context-surfing` (context quality monitoring — runs concurrently with intent-framed-agent during execution)
+5. `simplify-and-harden` (post-completion quality/security pass)
+6. `self-improvement` (capture recurring patterns and promote durable rules)
 
 ---
 

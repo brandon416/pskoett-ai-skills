@@ -1,6 +1,6 @@
 ---
 name: skill-pipeline
-description: 'Pipeline orchestrator that classifies incoming coding tasks and routes them through the correct combination of skills at the right depth. Implements two feedback loops: the inner loop (detect, verify, recover) runs within a session via plan-interview, intent-framed-agent, context-surfing, verify-gate, self-healing (active recovery on failure), simplify-and-harden, and self-improvement. The outer loop (inspect, encode, regress-test) runs across sessions via learning-aggregator, harness-updater, and eval-creator. pre-flight-check bridges the two by surfacing accumulated knowledge — past heals and learnings — at session start. Handles standard, orchestrated-batch, CI, and outer-loop pipeline variants. Does not replace individual skills; dispatches to them.'
+description: 'Pipeline orchestrator that classifies incoming coding tasks and routes them through the correct combination of skills at the right depth. Implements two feedback loops: the inner loop (detect, verify, recover) runs within a session via plan-interview, intent-framed-agent, session-context, context-surfing, verify-gate, self-healing (active recovery on failure), simplify-and-harden, and self-improvement. The outer loop (inspect, encode, regress-test) runs across sessions via learning-aggregator, harness-updater, and eval-creator. pre-flight-check bridges the two by surfacing accumulated knowledge — past heals and learnings — at session start. Handles standard, orchestrated-batch, CI, and outer-loop pipeline variants. Does not replace individual skills; dispatches to them.'
 ---
 
 # Skill Pipeline
@@ -23,7 +23,7 @@ Task received
   │  → verify-gate + simplify-and-harden
   │
   ├─ Medium (feature in known area, 2-5 files)
-  │  → intent-framed-agent + verify-gate + simplify-and-harden
+  │  → intent-framed-agent + session-context + verify-gate + simplify-and-harden
   │
   ├─ Large (complex refactor, new architecture, unfamiliar codebase, high-risk logic)
   │  → Full standard pipeline
@@ -48,7 +48,7 @@ Route task class to the right variant:
 |------------|---------|-----------|
 | Trivial | None | No overhead needed |
 | Small | Standard (minimal) | Verify + S&H only |
-| Medium | Standard (partial) | Scope monitoring + verify + review |
+| Medium | Standard (partial) | Intent + session context + verify + review |
 | Large | Standard (full) | Full inner loop with planning |
 | Long-running | Standard (full) | Context-surfing is critical |
 | Batch | Orchestrated standard | Bounded work units with per-unit gates |
@@ -65,7 +65,9 @@ Route task class to the right variant:
 pre-flight-check (SessionStart hook — surfaces prior learnings + heals)
   → classify
   → (recommend /plan-interview if Large or Long-running)
-  → intent-framed-agent (at planning-to-execution transition)
+  → intent-framed-agent (clarify material gaps; emit initial frame)
+  → session-context (invoked by intent framing; bounded history retrieval)
+  → finalize approach in the same intent frame
   → context-surfing (Large/Long-running or explicit high-context-pressure use; concurrent with intent monitoring)
   → [IMPLEMENTATION]
   → self-healing  ← inner-loop recovery primitive; called whenever a command/test/build/external call fails or a helper is missing.
@@ -82,11 +84,17 @@ pre-flight-check (SessionStart hook — surfaces prior learnings + heals)
 | pre-flight-check | Hook | Hook | Hook | Hook | Hook |
 | plan-interview | - | - | - | Recommend | Recommend |
 | intent-framed-agent | - | - | Activate | Activate | Activate |
+| session-context | - | On request | After frame | After frame | After frame; reuse on resume |
 | context-surfing | - | - | - | Activate | Critical |
 | verify-gate | - | Activate | Activate | Activate | Activate |
 | self-healing | On failure | On failure | On failure | On failure | On failure |
 | simplify-and-harden | - | If non-trivial | If non-trivial | If non-trivial | If non-trivial |
 | self-improvement | On error only | On error only | On error/completion | On error/completion | On error/completion |
+
+`intent-framed-agent` owns the call to `session-context`; these are ordered steps,
+not two independent triggers. A missing history source or no useful matches must
+not block implementation. On resume, reuse prior findings and retrieve only for a
+concrete new gap. This routing is agent-followed guidance, not a startup hook.
 
 ### Orchestrated Batch Pipeline
 
@@ -143,6 +151,7 @@ Not just which skills — how deep each goes:
 | Pre-flight check | Hook | Hook | Hook | Hook | Hook |
 | Planning passes | 0 | 0-1 | 1-2 | Deep iterative | Per-task or umbrella |
 | Intent frame | - | Single frame | Full frame + monitoring | Full + handoff | Umbrella invariants + per-unit frames |
+| Session context | On request | Bounded brief | Bounded brief | Bounded brief; reuse on resume | Share relevant brief; per-unit gaps only |
 | Context-surfing | - | - | Active | Critical (exit protocol ready) | Per Large/Long-running unit |
 | Verify-gate | Compile + test | Compile + test | Compile + test + lint | Compile + test + lint | Per unit + combined result |
 | Self-healing | On failure (file HEAL) | On failure (file HEAL) | On failure + recurrence check | On failure + recurrence check | On failure per unit |
@@ -158,7 +167,7 @@ Artifacts flow between skills. The orchestrator ensures each skill receives what
 
 1. **Plan file** (`docs/plans/plan-NNN-<slug>.md`) — produced by `plan-interview`, consumed by `intent-framed-agent` (context), `context-surfing` (wave anchor), and an optional `control-session-orchestrator` work-unit breakdown.
 
-2. **Intent Frame** — produced by `intent-framed-agent`, consumed by `context-surfing` (wave anchor strengthening). Copied into handoff files on drift exit.
+2. **Intent Frame** — produced by `intent-framed-agent`, consumed first by `session-context` (task and scope for retrieval), then by `context-surfing` (wave anchor strengthening). Useful history refines the approach in the same frame; it does not authorize changes. Copied into handoff files on drift exit.
 
 3. **Handoff file** (`.context-surfing/handoff-[slug]-[timestamp].md`) — produced by `context-surfing` on drift exit, consumed by next session for resume.
 
@@ -189,7 +198,12 @@ Classify the task. Select pipeline variant and depth. Emit routing decision. If 
 When user approves a plan from `plan-interview`, flow directly into the execution stage — no separate "should I proceed?" prompt. Activate `intent-framed-agent` and emit a faithful Intent Frame, but reuse the plan approval rather than asking for a second confirmation. Ask only if the frame introduces a material decision, assumption, or scope change. Populate task tracking with checklist items.
 
 ### Planning-to-Execution Transition
-When no plan-interview was used and the user signals readiness ("go ahead", "implement this", "let's start"), activate `intent-framed-agent`. Emit Intent Frame. Wait for user confirmation of the frame before coding.
+With or without plan-interview, activate `intent-framed-agent` for a clear
+implementation request. Ask only about unresolved material decisions, emit the
+initial frame, and let intent framing invoke `session-context` once. Finalize the
+approach using applicable evidence, preserving current approval and constraints.
+Do not add a blanket frame-confirmation gate or require an interview. Ask if the
+findings expose a material conflict; otherwise proceed to implementation.
 
 ### Failure mid-implementation
 A command, test, build, lint, or external call fails before verify-gate even runs (or any other mid-task gap appears — missing helper, env drift, API change). Route into `self-healing`: diagnose, patch, verify, file the HEAL entry. Resume execution from the working state. Most heals are recurrences — `self-healing` searches `HEALS.md` by Pattern-Key first.
@@ -204,7 +218,9 @@ If `context-surfing` fires a drift exit, stop execution. Write handoff file. If 
 Check for pending handoff files in `.context-surfing/`. If found, read the
 relevant file completely. Reuse an approved plan and intent unless material
 decisions remain, re-classify if needed, and resume from the recommended
-re-entry point. Mark the handoff consumed only after re-entry succeeds.
+re-entry point. Reuse any existing session-context brief rather than repeating
+retrieval without a concrete new gap. Mark the handoff consumed only after
+re-entry succeeds.
 
 ## Overrides
 

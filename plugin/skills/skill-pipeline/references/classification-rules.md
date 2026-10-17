@@ -43,7 +43,7 @@ Evaluate these signals to determine task class:
 ### Medium
 **Examples:** feature in a known area spanning 2-5 files, adding an API endpoint, component refactor
 **Signals:** 2-5 files, known patterns, moderate complexity
-**Pipeline:** `intent-framed-agent` + `verify-gate` + `self-healing` (on failure) + `simplify-and-harden`
+**Pipeline:** `intent-framed-agent` + `session-context` (after the initial frame) + `verify-gate` + `self-healing` (on failure) + `simplify-and-harden`
 
 ### Large
 **Examples:** complex refactor, new architecture, unfamiliar codebase, auth system changes, database migration
