@@ -234,3 +234,33 @@ change. Keep authorized task-local recovery separate from skill mutation.
 - Notes: Added first-occurrence proposal handoffs and an approval boundary across the three skills; runtime recovery remains separate.
 
 ---
+
+## [LRN-20261017-001] correction
+
+**Logged**: 2026-10-17
+**Priority**: medium
+**Status**: resolved
+**Area**: config
+
+### Summary
+Exclude CI-only skills from this user's personal Amp skill installation.
+
+### Details and Prevention Rule
+I interpreted "add the rest of my skills to Amp" as all canonical skills,
+including six `-ci` variants. The user clarified: "Not the ci skills".
+For future personal Amp installs, select interactive skills and exclude `-ci`
+unless explicitly requested. Do not remove CI skills from the source repository.
+
+### Metadata
+- Source: user_feedback
+- Pattern-Key: installation.amp-exclude-ci-skills
+- Recurrence-Count: 1
+- Related Files: skills/*/SKILL.md
+
+### Context Maintenance
+- Decay-Type: decision
+- Decay-Rate: durable (explicit user preference until superseded)
+- Authority: user correction in this thread; Owner: pskoett
+- Revalidation: check newer user instructions before another installation; if unclear, retain the non-CI selection
+- Validation: verified; Last-Validated: 2026-10-17; Evidence: removed six CI skills, pushed the corrected User Skills repository, and reloaded Amp with no CI skills or loading errors
+- Disposition: retain; Application: applied to personal Amp installation
