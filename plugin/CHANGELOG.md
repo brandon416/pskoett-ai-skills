@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.7.1 - 2026-10-17
+
+### Fixed
+- **Self-improvement hooks**: use Claude and Copilot failure events with host-specific output contracts, ignore misleading success output, and keep Codex on prompt reminders where shell exit status is unavailable.
+- **Installation guidance**: document canonical sources, agent-specific paths and trust requirements, and Amp skill discovery versus native per-turn plugins.
+
+### Changed
+- **Self-improvement scope**: remove OpenClaw integration and move installation details into references; synchronize generated bundles and the installed `.agents` copy.
+- **Claude registration**: generate self-improvement hooks from a canonical asset, with regression coverage for failure guidance and bundle synchronization.
+
+---
+
 ## 2.7.0 - 2026-10-17
 
 ### Added
