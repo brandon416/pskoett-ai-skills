@@ -72,6 +72,24 @@ copilot plugin install pskoett-ai-skills
 
 Copilot reads the marketplace from `.github/plugin/marketplace.json` and the plugin manifest from `plugin/.copilot-plugin/plugin.json`.
 
+### Amp
+
+The native Amp reminder plugin is [`amp-plugin/self-improvement.ts`](amp-plugin/self-improvement.ts).
+It adds hidden guidance on each user prompt to evaluate useful learnings. It does
+not bundle skills, write learning files, or start additional agent turns. Install
+the skills separately using the [installation guide](skills/self-improvement/references/installation.md).
+
+For cross-project use, run `amp plugins repositories`, clone your writable User
+Plugins repository using the printed command, and copy `amp-plugin/self-improvement.ts`
+to its root. Commit and push that repository, then reload plugins in existing Amp
+threads. Review any existing copy before replacing it.
+
+Alternatively, copy the file into a project's `.amp/plugins/` directory for
+project-only use. Choose one installation location to avoid duplicate reminders.
+This repo keeps the source in `amp-plugin/`, which Amp does not auto-load. Maintain
+the source here and copy updates to the chosen plugin installation; publication
+to the User Plugins repository is a separate step.
+
 ### Individual skills via GitHub CLI (`gh skill`)
 
 Use [`gh skill`](https://cli.github.com/manual/gh_skill_install) to install individual skills. It requires GitHub CLI `v2.90.0` or later.
