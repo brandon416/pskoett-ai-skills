@@ -8,11 +8,17 @@ description: "Frames coding-agent work sessions with explicit intent capture and
 ## Install
 
 ```bash
-npx skills add pskoett/pskoett-ai-skills
+gh skill install pskoett/pskoett-skills
 ```
 
 ```bash
-npx skills add pskoett/pskoett-ai-skills/skills/intent-framed-agent
+gh skill install pskoett/pskoett-skills intent-framed-agent
+```
+
+Fallback using the Agent Skills CLI:
+
+```bash
+npx skills add pskoett/pskoett-skills/skills/intent-framed-agent
 ```
 
 ## Purpose
@@ -115,8 +121,9 @@ This looks like it may be moving outside the stated intent.
 **Question:** Is this a deliberate pivot or accidental scope creep?
 ```
 
-If pivot is intentional, update the active intent frame and continue. If not,
-return to the original scope.
+If the user already directed the pivot, update the active intent frame and
+continue under the enduring constraints. Otherwise ask whether the apparent
+pivot is intentional. If not, return to the original scope.
 
 ### Phase 3: Intent Resolution
 
@@ -143,7 +150,11 @@ Rules:
    `Abandoned` or `Pivoted`, then open a new frame.
 3. Drift checks always target the currently active frame.
 4. Number frames sequentially within the session (`#1`, `#2`, ...).
-5. Constraints do not carry forward unless explicitly restated.
+5. Enduring constraints carry forward; frame-local choices do not. User
+   prohibitions, safety/privacy limits, authorization boundaries, repository
+   restrictions, and explicit "do not" instructions remain active until the
+   user revokes them. A local implementation choice carries forward only when
+   the new outcome still depends on it; otherwise restate it or ask.
 
 ## Entire CLI Integration
 
@@ -155,14 +166,34 @@ When tool access is available, detect Entire at activation:
 entire status 2>/dev/null
 ```
 
-- If it succeeds, mention that intent records will be captured in the session
-  transcript on the checkpoint branch.
+- If it succeeds and the active host adapter records conversation lifecycle
+  events, mention that intent records are expected in the session transcript.
+  Do not infer complete transcript coverage from `entire status`; inspect the
+  available session/checkpoint state before relying on it for
+  `learning-aggregator --deep`.
 - If unavailable/failing, continue silently. Do not block execution and do not
   nag about installation.
 
 Copilot/chat fallback:
 - If command execution is unavailable, skip detection and continue with the
   same intent workflow in chat output.
+
+### How intent frames become learning signals
+
+When the active host adapter captures message events, each Intent Frame and
+Intent Check is available in Entire's session transcript. At cadence,
+`learning-aggregator --deep` can read the available transcripts and extract:
+
+- Frames that were resolved as `Abandoned` or `Pivoted` → potential planning
+  gaps
+- Drift signals that repeatedly fire in similar contexts → potential scope
+  definition issues
+- Constraint violations detected by drift checks → patterns for promotion to
+  project instruction files
+
+You do not need to do anything special for this — the intent blocks are
+structured (`## Intent Frame #N`, `## Intent Check`, `## Intent Resolution`),
+which makes them parseable from the transcript.
 
 ## Guardrails
 
@@ -178,7 +209,8 @@ Use this skill as the front-door alignment layer for non-trivial coding work:
 1. `plan-interview` (optional, for requirement shaping)
 2. `intent-framed-agent` (clarify gaps and emit the initial execution contract)
 3. `session-context` (bounded prior-session evidence, then finalize the approach)
-4. `context-surfing` (context quality monitoring — runs concurrently with intent-framed-agent during execution)
+4. `context-surfing` (optional context-quality monitoring for Large,
+   Long-running, or explicitly context-sensitive execution)
 5. `simplify-and-harden` (post-completion quality/security pass)
 6. `self-improvement` (capture recurring patterns and promote durable rules)
 
@@ -188,7 +220,8 @@ and is not required for targeted clarification inside intent framing.
 
 ### Relationship with context-surfing
 
-Both skills are live during execution. They monitor different failure modes:
+When `context-surfing` is activated, both skills are live during execution.
+They monitor different failure modes:
 
 - **intent-framed-agent** monitors *scope* drift — is the agent doing the right
   thing? It fires structured Intent Checks when work moves outside the stated
@@ -206,6 +239,15 @@ monitoring.
 context-surfing drift exit at the same time), the drift exit takes precedence.
 Degraded context makes scope checks unreliable — resolve the context issue
 first, then resume scope monitoring in the next session.
+
+**Cadence separation:** Intent Checks fire at scope boundaries — before
+touching a new area/file, before starting a new logical work unit, when the
+current action feels tangential. Context-surfing's pre-commit anchor check
+fires at side-effecting-action moments — specific tool calls, writes,
+commits, commit-level output. Don't run both in the same beat: if an Intent
+Check has just fired and resolved cleanly, the next side-effecting action
+inside the same work unit doesn't need a fresh anchor check — you already
+re-grounded.
 
 ### What this skill produces
 

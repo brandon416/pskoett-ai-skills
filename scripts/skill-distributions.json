@@ -1,0 +1,53 @@
+{
+  "native": {
+    "context-decay": {},
+    "context-surfing": {
+      "hooks": {
+        "SessionStart": [{
+          "hooks": [{
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/skills/context-surfing/scripts/handoff-checker.sh"
+          }]
+        }]
+      }
+    },
+    "control-session-orchestrator": {},
+    "eval-creator": {
+      "user-invocable": true,
+      "argument-hint": "[create | run | list] [--pattern-key KEY]"
+    },
+    "eval-creator-ci": {},
+    "intent-framed-agent": {},
+    "learning-aggregator": {
+      "user-invocable": true,
+      "argument-hint": "[--since YYYY-MM-DD] [--min-recurrence N] [--area AREA]"
+    },
+    "learning-aggregator-ci": {},
+    "plan-interview": {},
+    "pre-flight-check": {
+      "hooks": {
+        "SessionStart": [{
+          "matcher": "",
+          "hooks": [{"type": "command", "command": "./scripts/pre-flight.sh"}]
+        }]
+      }
+    },
+    "self-healing": {},
+    "self-healing-ci": {},
+    "self-improvement": {},
+    "session-context": {},
+    "simplify-and-harden": {},
+    "skill-pipeline": {},
+    "verify-gate": {
+      "user-invocable": true,
+      "argument-hint": "[--skip-lint] [--skip-types] [--fix-limit N]"
+    }
+  },
+  "installed": [
+    "context-surfing",
+    "intent-framed-agent",
+    "plan-interview",
+    "self-improvement",
+    "simplify-and-harden"
+  ]
+}

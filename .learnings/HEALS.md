@@ -102,3 +102,64 @@ and a real prompt; do not count CLI exit 0 as proof. Removed temporary probes.
 - Recurrence-Count: 1
 - First-Seen: 2026-10-17
 - Last-Seen: 2026-10-17
+
+---
+
+## [HEAL-20261018-001] absent-local-skill-validator
+
+**Logged**: 2026-10-18
+**Status**: verified
+**Trigger**: missing-capability
+**Area**: validation
+**Priority**: low
+
+### Failure and Diagnosis
+Looking for `.agents/skills/skill-creator/scripts/quick_validate.py` failed with
+exit 2. That local skill contains only instructions and a license. The alternate
+`.claude/skills/skill-creator/scripts/quick_validate.py` path is also absent;
+`run-tests.sh` skips its optional spec check when that helper is unavailable.
+
+### Fix and Verification
+Used the README's independent Agent Skills reference CLI instead of treating the
+shell convention checks as full spec validation:
+`uvx --from 'git+https://github.com/agentskills/agentskills.git#subdirectory=skills-ref' skills-ref validate .agents/skills/context-surfing`
+returned exit 0, `Valid skill: .agents/skills/context-surfing`.
+This is a verified validation workaround, not restoration of the missing helper.
+No skill installation or skill-tester change was made.
+
+### Metadata
+- Pattern-Key: validation.absent_local_skill_validator
+- Recurrence-Count: 1
+- First-Seen: 2026-10-18
+- Last-Seen: 2026-10-18
+- Related Files: skills/skill-tester/scripts/run-tests.sh, README.md
+
+---
+
+## [HEAL-20261018-002] staged-generated-reference-whitespace
+
+**Logged**: 2026-10-18
+**Status**: verified
+**Trigger**: tool-failure
+**Area**: validation
+**Priority**: low
+
+### Failure and Diagnosis
+`git diff --cached --check` exited 2 after staging a newly generated `.agents`
+reference. Earlier unstaged checks did not include this previously untracked file.
+Its trailing spaces came unchanged from the canonical simplify-and-harden reference.
+
+### Fix and Verification
+Formatted the canonical reference with `git stripspace`, inspected the result to
+confirm only trailing spaces changed, and regenerated with
+`./scripts/sync-plugin.sh simplify-and-harden`. Restaged source and mirrors.
+`git diff --cached --check`, the distribution validator, and sync regression
+checks all returned exit 0. Run the staged check before committing new files;
+repair generated whitespace at its source rather than breaking mirror parity.
+
+### Metadata
+- Pattern-Key: validation.staged_generated_whitespace
+- Recurrence-Count: 1
+- First-Seen: 2026-10-18
+- Last-Seen: 2026-10-18
+- Related Files: skills/simplify-and-harden/references/agent-context-snippets.md, scripts/sync_plugin.py

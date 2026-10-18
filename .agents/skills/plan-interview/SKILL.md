@@ -1,7 +1,7 @@
 ---
 name: plan-interview
 description: |
-  Ensures alignment between user and Codex during feature/spec planning through a structured interview process.
+  Ensures alignment between user and Claude during feature/spec planning through a structured interview process.
 
   Use this skill when the user invokes /plan-interview before implementing a new feature, refactoring, or any non-trivial implementation task. The skill runs an upfront interview to gather requirements across technical constraints, scope boundaries, risk tolerance, and success criteria before any codebase exploration.
 
@@ -9,6 +9,26 @@ description: |
 ---
 
 # Plan Interview Skill
+
+## Install
+
+```bash
+gh skill install pskoett/pskoett-skills plan-interview
+```
+
+Fallback using the Agent Skills CLI:
+
+```bash
+npx skills add pskoett/pskoett-skills/skills/plan-interview
+```
+
+## Philosophy
+
+Every skill in this collection is built around a core philosophy — a principle that agents struggle to internalize on their own.
+
+This skill's philosophy: **"Make the change easy, then make the change."**
+
+Agents default to plowing straight through implementation, no matter how tangled the path. They rarely pause to ask: "Would a preparatory refactor make this change simple instead of hard?" Planning is where that question gets asked. During codebase exploration and plan generation, actively look for structural friction — code that makes the target change awkward, brittle, or overly complex. When you find it, the plan should propose a preparatory step: make the change easy first, then make the change itself. Two clean steps beat one heroic slog.
 
 ## Purpose
 
@@ -24,7 +44,13 @@ User calls `/plan-interview <task description>`.
 
 ### Phase 1: Upfront Interview (Before Exploration)
 
-Check your available tools for `AskUserQuestion`. If it exists, use it to interview the user in **thematic batches of 2-3 questions** — this is the preferred method as it creates a structured prompt for the user to respond to. If `AskUserQuestion` is not available (e.g., GitHub Copilot or other providers without it), ask the same questions directly in chat and pause for responses before continuing.
+Check for the host's structured question tool (`ask_user`,
+`AskUserQuestion`, or an equivalent). Use it for focused questions that the
+user can answer before the next planning step. In hosts without a structured
+question tool, ask the same question directly in chat and pause for the
+response. Do not fall back to plain chat merely because the host uses a
+different tool name. Respect the host schema: if the tool accepts only one
+question per call, ask the domains sequentially rather than bundling them.
 
 #### Required Question Domains
 
@@ -89,11 +115,31 @@ After interview completes, explore the codebase to understand:
 - Files that will be affected
 - Integration points
 - Potential risks
+- **Structural friction** — Is the current code shape fighting the planned change? Would a preparatory refactor (rename, extract, restructure) make the actual implementation straightforward? If yes, propose it as a distinct first step in the plan.
 
 For complex or unfamiliar projects, do a brief context refresh before deep planning:
 - Re-read `AGENTS.md` and `README.md` if present and relevant
 - Identify the current architecture boundaries and conventions before refining the plan
 - If the session was interrupted or context drifted, refresh these again before another refinement round
+
+### Knowledge Audit (Between Exploration and Planning)
+
+Before writing the plan, explicitly ask: **"Does the knowledge needed to complete this task exist somewhere I can reach?"**
+
+For each significant implementation step, classify where the required knowledge lives:
+
+- **Codebase** — Existing patterns, conventions, or code that demonstrates how to do it. Found during exploration.
+- **Prompt/context** — User-provided requirements, constraints, or domain knowledge from the interview.
+- **Training data** — General programming knowledge, well-known libraries, standard patterns the model reliably knows.
+- **Nowhere reachable** — The knowledge isn't in any of the above. The agent would be guessing.
+
+When a step falls into "nowhere reachable":
+1. **Stop and surface it.** Do not fill the gap with confident-sounding guesses.
+2. Ask the user to provide the missing knowledge, point to documentation, or confirm that best-effort is acceptable.
+3. If the user provides a reference (docs URL, API spec, example), load it before planning that step.
+4. If the gap cannot be filled, mark the step as blocked in the plan's Open Questions section.
+
+This audit prevents the most common agent failure: confidently proceeding when the knowledge simply isn't there, producing plausible but wrong output.
 
 ### Phase 3: Plan Generation
 
@@ -157,6 +203,14 @@ Every plan MUST include:
 ## Validation and Diagnostics
 [How to verify the feature works after implementation; include detailed logging/diagnostics expectations in tests/scripts when useful for debugging]
 
+## Knowledge Map
+[For each major step, where does the required knowledge live?]
+| Step | Knowledge Source | Confidence |
+|------|-----------------|------------|
+| Step 1 | Codebase (existing pattern in src/auth/) | High |
+| Step 2 | Training data (standard OAuth2 flow) | High |
+| Step 3 | Nowhere — need user to provide API spec | Blocked |
+
 ## Open Questions
 [Uncertainties to resolve during implementation]
 - [ ] Question 1 - [Blocks implementation / Can proceed]
@@ -188,8 +242,8 @@ Include when relevant:
 
 When user approves the plan:
 
-1. **Auto-start implementation** immediately (no "proceed" confirmation needed)
-2. Populate `TodoWrite` with checklist items
+1. **Auto-start implementation** immediately (no separate "proceed" confirmation needed). If `intent-framed-agent` is active, flow directly into a faithful Intent Frame and reuse the plan approval. Ask again only if the frame introduces a material change or unresolved decision.
+2. Populate `TodoWrite` with checklist items (if `TodoWrite` is not available, track progress via structured comments in your output)
 3. At **natural breakpoints** (significant decisions), compare progress to plan
 
 ## Fast Mode
@@ -215,12 +269,32 @@ AskUserQuestion: "I found an existing partial plan. Would you like to:"
 
 If resuming refinement, first summarize the current plan state and the most recent refinement changes, then continue with the fresh-eyes refinement loop.
 
+## Interoperability with Other Skills
+
+### What this skill consumes
+- **From the user:** Task description, requirements, and answers to interview questions.
+- **From the codebase:** Existing patterns, architecture, and conventions discovered during exploration.
+- **From context-surfing handoff files (on resume):** If a previous session exited due to context drift, the handoff file in `.context-surfing/` provides the re-entry point and remaining work for replanning.
+
+### What this skill produces
+- **Plan file** (`docs/plans/plan-NNN-<slug>.md`) — consumed by intent-framed-agent as context for the intent frame, and by context-surfing as part of the wave anchor. Copied verbatim into handoff files on drift exit.
+- **Planning depth classification** — informs how many skills to activate (see pipeline depth table in README).
+
+### Pipeline position
+1. `plan-interview` (requirements and plan generation — you are here)
+2. `intent-framed-agent` (execution contract + scope drift monitoring)
+3. `context-surfing` (optional context-quality monitoring for Large,
+   Long-running, or explicitly context-sensitive execution)
+4. `verify-gate` (machine verification: compile + test + lint)
+5. `simplify-and-harden` (post-completion quality/security pass)
+6. `self-improvement` (capture recurring patterns and promote durable rules)
+
 ## Example
 
 ```
 User: /plan-interview Add OAuth authentication to the API
 
-Codex: I'll help you plan the OAuth authentication feature. Let me gather
+Claude: I'll help you plan the OAuth authentication feature. Let me gather
         requirements first.
 
 [AskUserQuestion - Scope batch]
@@ -243,9 +317,9 @@ User: Separate table. We're on Vercel so callback URLs need to be configured per
 
 User: Fall back to standard login. Link accounts by email if user confirms.
 
-Codex: [Explores codebase for auth patterns, session handling, database schema]
+Claude: [Explores codebase for auth patterns, session handling, database schema]
 
-Codex: [Writes docs/plans/plan-003-oauth-authentication.md]
+Claude: [Writes docs/plans/plan-003-oauth-authentication.md]
 
         Plan created. The main decision point is whether to use Passport.js
         or implement OAuth flows directly - I've documented both approaches
@@ -253,5 +327,5 @@ Codex: [Writes docs/plans/plan-003-oauth-authentication.md]
 
 User: Looks good, go with Passport.js
 
-Codex: [Auto-starts implementation with TodoWrite tracking]
+Claude: [Auto-starts implementation with TodoWrite tracking]
 ```

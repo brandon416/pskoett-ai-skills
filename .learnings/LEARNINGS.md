@@ -264,3 +264,47 @@ unless explicitly requested. Do not remove CI skills from the source repository.
 - Revalidation: check newer user instructions before another installation; if unclear, retain the non-CI selection
 - Validation: verified; Last-Validated: 2026-10-17; Evidence: removed six CI skills, pushed the corrected User Skills repository, and reloaded Amp with no CI skills or loading errors
 - Disposition: retain; Application: applied to personal Amp installation
+
+---
+
+## [LRN-20261018-001] best_practice
+
+**Logged**: 2026-10-18
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Plugin checks must start at the marketplace-selected root and distinguish local packaging from host installation.
+
+### Details and Prevention Rule
+The old Copilot validator read the nested manifest but copied the parent plugin's
+agents. Its successful artifact contained zero `.agent.md` files; the corrected
+validator packages six. Resolve the marketplace source before component paths,
+use asymmetric fixtures for competing roots, and check official host docs before
+claiming compatibility. Local symlink materialization is not proof that a host
+installer preserves those resources.
+
+### Metadata
+- Source: conversation
+- Pattern-Key: validation.marketplace_selected_plugin_root
+- Recurrence-Count: 1
+- Related Files: scripts/validate-plugin.py, scripts/test-validate-plugin.py, README.md
+
+### Context Maintenance
+- Decay-Type: dependency
+- Decay-Rate: fast (plugin installation contracts change with client releases)
+- Authority: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference; Owner: repository maintainer
+- Revalidation: check current host docs and marketplace selection before packaging changes; if unavailable, report host compatibility as unverified
+- Validation: verified for documented path rules, local before/after artifacts, and isolated Mac installations; Last-Validated: 2026-10-18; Evidence: original validator produced zero Copilot agents, corrected validator produced six, regression fixtures pass; Copilot CLI 1.0.99-2 direct local installation materialized shared resources and preserved all 59 files' bytes and modes
+- Disposition: retain; Application: applied to validator and contributor documentation; remote Git marketplace copying and runtime hook dispatch remain unverified
+
+### Revalidation Evidence
+The user supplied a Mac runner with installed clients. The exact uncommitted
+snapshot (SHA256 `8c602631bac9a085dde8c6b687966aca1c77f752abb22588166b8ce0791e729b`)
+passed local installation and discovery of 17 skills in Claude Code 2.1.280,
+Copilot CLI 1.0.99-2, and Codex 0.160.1. Claude strict validation returned no
+errors or warnings. Codex registered seven untrusted hooks without diagnostics;
+Copilot runtime inventory required authentication. No normal user installations
+or credentials were changed. This revalidation does not increase recurrence.
+Evidence thread: https://ampcode.com/threads/T-01a14eae-7f52-72f3-822b-b2685b99d17b.

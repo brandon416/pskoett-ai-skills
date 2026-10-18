@@ -13,8 +13,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_ROOT = ROOT / "plugin"
-MANIFEST_PATH = PLUGIN_ROOT / ".copilot-plugin" / "plugin.json"
 ROOT_VARIABLES = ("PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 
 
@@ -30,50 +28,68 @@ def load_json(path: Path) -> dict:
         raise ValidationError(f"cannot read {label}: {error}") from error
 
 
-def resolve_component(relative_path: str) -> Path:
-    path = (PLUGIN_ROOT / relative_path).resolve()
-    try:
-        path.relative_to(PLUGIN_ROOT.resolve())
-    except ValueError as error:
-        raise ValidationError(f"component escapes plugin root: {relative_path}") from error
+def resolve_component(plugin_root: Path, relative_path: str, repository_root: Path) -> Path:
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValidationError(f"component escapes plugin root: {relative_path}")
+    # Keep the declared path for artifact placement, not the symlink's target.
+    path = plugin_root / relative
     if not path.exists():
         raise ValidationError(f"missing plugin component: {relative_path}")
+    # This repo shares resources through symlinks. Materialize only repo-local
+    # targets; this is a packaging check, not a claim about Copilot's installer.
+    if not path.resolve().is_relative_to(repository_root.resolve()):
+        raise ValidationError(f"component escapes repository: {path}")
     return path
 
 
-def copy_path(source: Path, destination: Path) -> None:
+def copy_path(source: Path, destination: Path, repository_root: Path) -> None:
+    # Check every traversed entry, including children of linked directories.
+    if not source.resolve().is_relative_to(repository_root.resolve()):
+        raise ValidationError(f"component escapes repository: {source}")
     if source.is_dir():
-        shutil.copytree(source, destination, dirs_exist_ok=True)
+        destination.mkdir(parents=True, exist_ok=True)
+        for entry in source.iterdir():
+            copy_path(entry, destination / entry.name, repository_root)
     else:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
 
-def build_artifact(destination: Path) -> tuple[dict, Path]:
-    manifest = load_json(MANIFEST_PATH)
+def build_artifact(destination: Path, repository_root: Path = ROOT) -> tuple[dict, Path]:
+    marketplace = load_json(repository_root / ".github/plugin/marketplace.json")
+    entries = [entry for entry in marketplace["plugins"] if entry["name"] == "pskoett-ai-skills"]
+    if len(entries) != 1 or not isinstance(entries[0]["source"], str):
+        raise ValidationError("expected one repo-local pskoett-ai-skills marketplace entry")
+    plugin_root = resolve_component(repository_root, entries[0]["source"], repository_root)
+    manifest_path = plugin_root / "plugin.json"
+    manifest = load_json(manifest_path)
+    if manifest["name"] != entries[0]["name"]:
+        raise ValidationError("manifest name differs from marketplace entry")
     artifact = destination / manifest["name"]
     artifact.mkdir()
-    shutil.copy2(MANIFEST_PATH, artifact / "plugin.json")
+    copy_path(manifest_path, artifact / "plugin.json", repository_root)
 
-    license_path = PLUGIN_ROOT / "LICENSE"
+    license_path = plugin_root / "LICENSE"
     if license_path.exists():
-        shutil.copy2(license_path, artifact / "LICENSE")
+        copy_path(license_path, artifact / "LICENSE", repository_root)
 
     for field in ("agents", "skills"):
         values = manifest.get(field, [])
         if isinstance(values, str):
             values = [values]
         for value in values:
-            source = resolve_component(value)
-            copy_path(source, artifact / source.relative_to(PLUGIN_ROOT))
+            source = resolve_component(plugin_root, value, repository_root)
+            copy_path(source, artifact / source.relative_to(plugin_root), repository_root)
 
     hooks_path = manifest.get("hooks")
     if not isinstance(hooks_path, str):
         raise ValidationError("Copilot manifest must reference a hooks configuration file")
-    hooks_source = resolve_component(hooks_path)
+    hooks_source = resolve_component(plugin_root, hooks_path, repository_root)
     copy_path(
         hooks_source.parent,
-        artifact / hooks_source.parent.relative_to(PLUGIN_ROOT),
+        artifact / hooks_source.parent.relative_to(plugin_root),
+        repository_root,
     )
     return manifest, artifact
 
@@ -207,7 +223,7 @@ def main() -> int:
         print(f"Plugin validation failed: {error}", file=sys.stderr)
         return 1
 
-    print("Plugin artifact and optional Entire hook validation passed.")
+    print("Marketplace-selected Copilot artifact and optional Entire hook validation passed (not a live client test).")
     return 0
 
 

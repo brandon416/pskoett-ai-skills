@@ -19,6 +19,8 @@ except ImportError as exc:
 
 from sync_plugin import (
     AGENT_SKILL_KEYS,
+    INSTALLED_SKILLS,
+    INSTALLED_SKILLS_DIR,
     NATIVE_SKILLS_DIR,
     NATIVE_SUBDIRS,
     PORTABLE_EXCLUDES,
@@ -153,9 +155,10 @@ def expected_portable_files(source: Path):
     }
 
 
-def validate_portable_skill(name: str) -> int:
+def validate_portable_skill(name: str, skills_dir: Path = PORTABLE_SKILLS_DIR) -> int:
+    """Check canonical runtime files, including managed .agents installations."""
     source = SRC_DIR / name
-    generated = PORTABLE_SKILLS_DIR / name
+    generated = skills_dir / name
     expected = expected_portable_files(source)
     actual = files_under(generated)
 
@@ -163,7 +166,7 @@ def validate_portable_skill(name: str) -> int:
         missing = sorted(str(path) for path in set(expected) - set(actual))
         extra = sorted(str(path) for path in set(actual) - set(expected))
         raise ValidationError(
-            f"portable skill {name} file drift; missing={missing}, extra={extra}"
+            f"{generated} file drift; missing={missing}, extra={extra}"
         )
 
     frontmatter, _ = split_frontmatter(
@@ -192,12 +195,12 @@ def validate_portable_skill(name: str) -> int:
     for relative, source_file in expected.items():
         generated_file = actual[relative]
         if source_file.read_bytes() != generated_file.read_bytes():
-            raise ValidationError(f"portable skill content drift: {name}/{relative}")
+            raise ValidationError(f"canonical skill content drift: {generated / relative}")
         source_mode = stat.S_IMODE(source_file.stat().st_mode)
         generated_mode = stat.S_IMODE(generated_file.stat().st_mode)
         if source_mode != generated_mode:
             raise ValidationError(
-                f"portable skill mode drift: {name}/{relative} "
+                f"canonical skill mode drift: {generated / relative} "
                 f"{source_mode:o} != {generated_mode:o}"
             )
 
@@ -213,7 +216,7 @@ def validate_native_skill(name: str) -> None:
 
     if skill_md.read_text(encoding="utf-8") != build_skill_md(
         source / "SKILL.md",
-        skill_md,
+        name,
     ):
         raise ValidationError(f"native plugin skill drift: {name}/SKILL.md")
 
@@ -322,9 +325,14 @@ def main() -> int:
             )
 
         artifact_count = 0
+        native_skills = {path.name for path in NATIVE_SKILLS_DIR.iterdir()}
+        if native_skills != expected_skills:
+            raise ValidationError("native skill membership drift")
         for name in sorted(expected_skills):
             artifact_count += validate_portable_skill(name)
             validate_native_skill(name)
+        for name in sorted(INSTALLED_SKILLS):
+            validate_portable_skill(name, INSTALLED_SKILLS_DIR)
         if (PORTABLE_PLUGIN_DIR / "LICENSE").read_bytes() != (
             ROOT / "plugin" / "LICENSE"
         ).read_bytes():
@@ -340,6 +348,7 @@ def main() -> int:
         "Agent Plugins package validation passed: "
         f"{len(expected_skills)} portable skills, {artifact_count} portable artifacts, "
         f"{len(expected_skills)} native mirrors, "
+        f"{len(INSTALLED_SKILLS)} managed .agents copies, "
         f"MCP {mcp_status}, version {manifest['version']}."
     )
     return 0

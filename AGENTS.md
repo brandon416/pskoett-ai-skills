@@ -119,8 +119,10 @@ Check against the spec at https://agentskills.io/specification:
 
 `plugin/skills/` and `agent-plugin/skills/` are generated from `skills/` — do not hand-edit them. The public `skills/` copy is the single source of truth. The native plugin copy adds client-registration frontmatter (`hooks`, `user-invocable`, `argument-hint`); the portable copy keeps only Agent Skills-compatible metadata and excludes development-only eval fixtures. After changing any bundled `skills/` source, resync:
 
+`scripts/skill-distributions.json` owns bundle membership, native registration, and managed `.agents/skills/` membership. Skill-owned `assets/claude-hooks.json` overrides configured hooks. The sync command also refreshes managed `.agents` copies from canonical runtime files; unlisted local-only skills remain untouched. Never derive membership or registration from generated outputs.
+
 ```bash
-./scripts/sync-plugin.sh            # sync every bundled skill
+./scripts/sync-plugin.sh            # sync every configured skill and managed installation
 ./scripts/sync-plugin.sh <skill>    # sync one
 ```
 

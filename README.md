@@ -63,7 +63,7 @@ Codex reads the marketplace from `.agents/plugins/marketplace.json` and the plug
 
 ### GitHub Copilot CLI
 
-The Copilot CLI plugin lives in `plugin/.copilot-plugin/` and uses the shared `plugin/skills/`, `plugin/agents/`, and `plugin/hooks/` directories:
+The Copilot CLI plugin root is `plugin/.copilot-plugin/`, selected by its marketplace entry. It contains Copilot-specific `agents/*.agent.md` copies and symlinks to the shared `plugin/skills/` and `plugin/hooks/` directories:
 
 ```
 copilot plugin marketplace add pskoett/pskoett-skills
@@ -327,12 +327,17 @@ Hook output is about 50 to 200 tokens. Hooks output nothing when they have nothi
 
 PRs with new skills or improvements are welcome.
 
-Edit skills in `skills/`, then regenerate the native and portable bundles after changing a bundled skill:
+Edit skills in `skills/`. [`scripts/skill-distributions.json`](scripts/skill-distributions.json) owns bundle membership, native registration fields, and the list of managed `.agents/skills/` installations. Skill-owned `assets/claude-hooks.json` overrides configured hooks. Generated directories are outputs, never registration sources.
+
+Regenerate the native and portable bundles and managed `.agents` copies:
 
 ```bash
 ./scripts/sync-plugin.sh
 python3 scripts/test-sync-plugin.py
+python3 scripts/test-validate-plugin.py
 ```
+
+Unlisted `.agents/skills/` directories are local-only and remain untouched. Portable and managed installed copies exclude development-only `evals/`. Native registration stays out of these canonical copies. Amp plugin publication remains separate from skill generation.
 
 Validate the native package and the Agent Plugins 1.0 package:
 
@@ -341,6 +346,12 @@ python3 scripts/validate-plugin.py
 uv run --with jsonschema==4.25.1 --with PyYAML==6.0.3 \
   python3 scripts/validate-agent-plugin.py
 ```
+
+The Copilot validator resolves the marketplace's `source`, uses that root's manifest and agents, and materializes repository-local resource symlinks into a temporary artifact. It tests packaged files and the optional hook wrapper, not Copilot installation or runtime hook dispatch. The portable validator also detects native registration and managed `.agents` drift.
+
+Isolated Mac checks on 2026-10-18 verified local installation and discovery of all 17 skills with Claude Code 2.1.280, Copilot CLI 1.0.99-2, and Codex 0.160.1. Claude's strict manifest validation passed and listed six agents. Copilot's direct local installation materialized all shared symlink resources, with all 59 installed files matching source bytes and modes; its local marketplace instead loaded the source in place. Codex registered seven hook entries without diagnostics, all untrusted. Actual hook dispatch, Copilot/Codex runtime agent registration, and remote Git marketplace copying remain unverified. These are version-specific checks, not a cross-client runtime guarantee.
+
+Package layout references: [Claude manifest paths](https://code.claude.com/docs/en/plugins/manifest-reference#path-rules), [Copilot marketplace sources and component paths](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference), [Codex packaging](https://developers.openai.com/plugins/build/plugins), and [Amp's separate TypeScript plugin API](https://ampcode.com/docs/plugin-api).
 
 The portable validator uses local copies of the published 1.0.0 schemas in `schemas/agent-plugins/1.0.0/`. When changing skill metadata, also validate the generated skill with the Agent Skills reference CLI:
 

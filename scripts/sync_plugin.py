@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-"""Sync canonical skills into native and portable plugin distributions.
+"""Sync canonical skills into plugin distributions and managed .agents copies.
 
-For each skill present in BOTH skills/ and plugin/skills/:
-  - rebuild the native plugin copy while preserving client registration fields
-  - copy the canonical Agent Skill into the portable Agent Plugins package
-  - copy runtime support files while excluding development-only evals
-
-Native plugin membership is the curated allowlist for both generated trees, so
-internal skills are not shipped accidentally.
+skill-distributions.json owns membership and native registration. Generated
+outputs are never inputs. Skill-owned assets/claude-hooks.json overrides hooks.
+Unlisted .agents skills are local-only and are never changed.
 
 Usage:
     python3 scripts/sync_plugin.py [skill-name ...]
-      no args -> sync every skill present in both trees
+      no args -> sync every configured skill
 """
 import json
 import re
@@ -26,9 +22,12 @@ SRC_DIR = ROOT / "skills"
 NATIVE_SKILLS_DIR = ROOT / "plugin" / "skills"
 PORTABLE_PLUGIN_DIR = ROOT / "agent-plugin"
 PORTABLE_SKILLS_DIR = PORTABLE_PLUGIN_DIR / "skills"
+INSTALLED_SKILLS_DIR = ROOT / ".agents" / "skills"
+CONFIG = json.loads((ROOT / "scripts" / "skill-distributions.json").read_text())
+NATIVE_REGISTRATION = CONFIG["native"]
+INSTALLED_SKILLS = set(CONFIG["installed"])
 
-# Frontmatter keys that are plugin-specific (absent from the public source) and
-# must be carried over from the existing plugin copy.
+# Frontmatter keys added only to native plugin copies.
 PLUGIN_KEYS = ["hooks", "user-invocable", "argument-hint"]
 AGENT_SKILL_KEYS = {
     "name",
@@ -56,23 +55,15 @@ def split_frontmatter(text):
     return None, text
 
 
-def build_skill_md(src_md: Path, dst_md: Path) -> str:
+def build_skill_md(src_md: Path, name: str) -> str:
     src_fm, src_body = split_frontmatter(src_md.read_text())
     if src_fm is None:
         raise SystemExit(f"no frontmatter in {src_md}")
 
-    dst_fm = {}
-    if dst_md.exists():
-        dst_fm, _ = split_frontmatter(dst_md.read_text())
-        dst_fm = dst_fm or {}
-
     new_fm = dict(src_fm)
     if isinstance(new_fm.get("description"), str):
         new_fm["description"] = new_fm["description"].strip()
-    # Carry over plugin-only registration keys that source does not define.
-    for key in PLUGIN_KEYS:
-        if key in dst_fm and key not in new_fm:
-            new_fm[key] = dst_fm[key]
+    new_fm.update(NATIVE_REGISTRATION[name])
 
     # Skills can own their Claude registration without hand-editing generated files.
     hooks_path = src_md.parent / "assets" / "claude-hooks.json"
@@ -116,10 +107,11 @@ def validate_portable_frontmatter(name: str, frontmatter: dict) -> None:
 
 
 def sync_native_skill(name: str, src: Path, dst: Path) -> None:
+    if dst.exists():
+        shutil.rmtree(dst)
+    dst.mkdir(parents=True)
     for sub in NATIVE_SUBDIRS:
         source_subdir, destination_subdir = src / sub, dst / sub
-        if destination_subdir.exists():
-            shutil.rmtree(destination_subdir)
         if source_subdir.is_dir():
             shutil.copytree(
                 source_subdir,
@@ -128,18 +120,18 @@ def sync_native_skill(name: str, src: Path, dst: Path) -> None:
             )
     skill_path = dst / "SKILL.md"
     skill_path.write_text(
-        build_skill_md(src / "SKILL.md", skill_path),
+        build_skill_md(src / "SKILL.md", name),
         encoding="utf-8",
     )
+    shutil.copymode(src / "SKILL.md", skill_path)
 
 
-def sync_portable_skill(name: str, src: Path) -> None:
+def sync_canonical_skill(name: str, src: Path, destination: Path) -> None:
     frontmatter, _ = split_frontmatter((src / "SKILL.md").read_text(encoding="utf-8"))
     if frontmatter is None:
         raise SystemExit(f"no frontmatter in {src / 'SKILL.md'}")
     validate_portable_frontmatter(name, frontmatter)
 
-    destination = PORTABLE_SKILLS_DIR / name
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
@@ -158,24 +150,26 @@ def sync_portable_skill(name: str, src: Path) -> None:
 def sync_skill(name: str) -> None:
     validate_skill_name(name)
     src, native = SRC_DIR / name, NATIVE_SKILLS_DIR / name
-    if not src.is_dir() or not native.is_dir():
-        raise SystemExit(f"{name} is not present in both skill trees")
-    sync_native_skill(name, src, native)
-    sync_portable_skill(name, src)
+    if name not in NATIVE_REGISTRATION and name not in INSTALLED_SKILLS:
+        raise SystemExit(f"{name} is not configured in skill-distributions.json")
+    if not (src / "SKILL.md").is_file():
+        raise SystemExit(f"missing canonical skill: {name}")
+    if name in NATIVE_REGISTRATION:
+        sync_native_skill(name, src, native)
+        sync_canonical_skill(name, src, PORTABLE_SKILLS_DIR / name)
+    if name in INSTALLED_SKILLS:
+        sync_canonical_skill(name, src, INSTALLED_SKILLS_DIR / name)
     print(f"  SYNCED {name}")
 
 
 def shared_skills():
-    return sorted(
-        p.name for p in SRC_DIR.iterdir()
-        if p.is_dir() and (NATIVE_SKILLS_DIR / p.name).is_dir()
-    )
+    return sorted(NATIVE_REGISTRATION)
 
 
-def remove_stale_portable_skills(expected: set[str]) -> None:
-    if not PORTABLE_SKILLS_DIR.exists():
+def remove_stale_skills(directory: Path, expected: set[str]) -> None:
+    if not directory.exists():
         return
-    for path in PORTABLE_SKILLS_DIR.iterdir():
+    for path in directory.iterdir():
         if path.is_dir() and path.name not in expected:
             shutil.rmtree(path)
         elif path.is_file():
@@ -183,11 +177,12 @@ def remove_stale_portable_skills(expected: set[str]) -> None:
 
 
 def main():
-    targets = sys.argv[1:] or shared_skills()
+    targets = sys.argv[1:] or sorted(set(shared_skills()) | INSTALLED_SKILLS)
     if not sys.argv[1:]:
-        remove_stale_portable_skills(set(targets))
+        for directory in (NATIVE_SKILLS_DIR, PORTABLE_SKILLS_DIR):
+            remove_stale_skills(directory, set(shared_skills()))
 
-    print("Syncing skills/ -> native and portable plugin distributions")
+    print("Syncing skills/ -> plugin distributions and managed .agents copies")
     for name in targets:
         sync_skill(name)
 

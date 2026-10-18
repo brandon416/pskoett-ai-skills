@@ -96,6 +96,8 @@ The `name` field in frontmatter must match the folder name.
 
 `plugin/skills/` and `agent-plugin/skills/` are generated from `skills/` — do not hand-edit them. Run `./scripts/sync-plugin.sh` after changing a bundled skill. Native copies may add client-registration frontmatter; portable copies must keep Agent Skills-compatible metadata and exclude development-only eval fixtures.
 
+`scripts/skill-distributions.json` owns bundle membership, native registration, and managed `.agents/skills/` membership. Skill-owned `assets/claude-hooks.json` overrides configured hooks. The sync command also refreshes managed `.agents` copies from canonical runtime files; unlisted local-only skills remain untouched. Never derive membership or registration from generated outputs.
+
 Agent Plugins 1.0 standardizes skills and MCP configuration, not native hooks or agents. Keep those capabilities in the client-specific manifests under `plugin/`; do not claim them as portable or invent extension namespaces.
 
 ## Self-Healing Workflow

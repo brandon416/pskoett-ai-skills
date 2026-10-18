@@ -1,15 +1,15 @@
 #!/bin/bash
-# Syncs canonical skills into native and portable plugin distributions.
+# Syncs canonical skills into plugin distributions and managed .agents copies.
 #
-# Each plugin SKILL.md is rebuilt from the SOURCE body + SOURCE description, while
-# preserving the plugin-only frontmatter (hooks, user-invocable, argument-hint) that
-# makes the skill register as a native plugin. agent-plugin/skills/ receives canonical
-# Agent Skills metadata and runtime support files, excluding development-only evals.
+# scripts/skill-distributions.json owns membership and native registration.
+# Skill-owned assets/claude-hooks.json overrides configured hooks. Portable and
+# managed .agents copies contain canonical metadata and runtime resources, not evals.
+# Unlisted .agents skills are left alone. Generated files are never inputs.
 #
 # Delegates to scripts/sync_plugin.py (requires python3 + PyYAML).
 #
 # Usage: ./scripts/sync-plugin.sh [skill-name ...]
-#   No args: sync the curated set present in both skills/ and plugin/skills/.
+#   No args: sync all configured skills.
 
 set -e
 
