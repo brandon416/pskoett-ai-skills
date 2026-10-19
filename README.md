@@ -74,18 +74,25 @@ Copilot reads the marketplace from `.github/plugin/marketplace.json` and the plu
 
 ### Amp
 
-The native Amp reminder plugin is [`amp-plugin/self-improvement.ts`](amp-plugin/self-improvement.ts).
-It adds hidden guidance on each user prompt to evaluate useful learnings. It does
-not bundle skills, write learning files, or start additional agent turns. Install
-the skills separately using the [installation guide](skills/self-improvement/references/installation.md).
+Native Amp plugins live in `amp-plugin/` and are installed separately from skills:
+
+| Plugin | Behavior |
+| --- | --- |
+| [Self-improvement](amp-plugin/self-improvement.ts) | Adds a per-turn reminder to evaluate useful learnings. Does not write learning files. |
+| [Thread relevance](amp-plugin/thread-relevance/README.md) | Uses Jev and native Amp search to suggest up to three thread names and links at a new orb's start. Investigation is optional; no transcript previews or mandatory reads. |
+
+Neither plugin bundles skills or starts extra agent turns. Install skills separately
+using the [installation guide](skills/self-improvement/references/installation.md).
 
 For cross-project use, run `amp plugins repositories`, clone your writable User
-Plugins repository using the printed command, and copy `amp-plugin/self-improvement.ts`
-to its root. Commit and push that repository, then reload plugins in existing Amp
-threads. Review any existing copy before replacing it.
+Plugins repository using the printed command, and copy the chosen plugin to its
+root: `self-improvement.ts` or the entire `thread-relevance/` directory, not just
+`index.ts`. Review any existing copy before replacing it. Commit and push that
+repository, then reload plugins in existing Amp threads. Thread relevance requires
+Amp CLI, Bash, Bun and Git; see its README for privacy rules and known limits.
 
-Alternatively, copy the file into a project's `.amp/plugins/` directory for
-project-only use. Choose one installation location to avoid duplicate reminders.
+Alternatively, copy the file or directory into a project's `.amp/plugins/` directory
+for project-only use. Choose one installation location per plugin to avoid duplicates.
 This repo keeps the source in `amp-plugin/`, which Amp does not auto-load. Maintain
 the source here and copy updates to the chosen plugin installation; publication
 to the User Plugins repository is a separate step.

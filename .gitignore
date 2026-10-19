@@ -1,6 +1,9 @@
 docs/
 .context-surfing/
 
+# Amp plugin development dependencies
+amp-plugin/node_modules/
+
 # Python validation caches
 __pycache__/
 *.py[cod]

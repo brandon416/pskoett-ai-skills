@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "check": "tsc --noEmit --strict --skipLibCheck --moduleResolution bundler --module preserve --target es2022 --types bun self-improvement.ts thread-relevance/index.ts thread-relevance/export.ts thread-relevance/search.ts thread-relevance/index.test.ts"
+  },
+  "devDependencies": {
+    "@ampcode/plugin": "0.0.0-20261018001817-g5ce754f",
+    "@types/bun": "1.3.10",
+    "typescript": "5.9.3"
+  }
+}
