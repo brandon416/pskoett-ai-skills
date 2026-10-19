@@ -6,6 +6,8 @@ No summaries, transcript previews, mandatory reads or extra agent turns.
 
 ## Install
 
+Requires Amp CLI, Bash, Bun and Git.
+
 Copy this whole directory into the root of your writable Amp User Plugins
 repository, then commit and push that repository. Find it with
 `amp plugins repositories`. For project-only use, copy the directory into
@@ -66,26 +68,5 @@ before sharing it.
 
 Relevant history can be missed, and suggestions can be irrelevant or outdated.
 No suggestions does not mean no useful history exists.
-
-In the latest four paired GPT-6.1 Sol tests, two tasks received named links and
-none were opened. Retrieval added 0.8 to 8.2 seconds. **Better task understanding
-or a consistent speed benefit has not been established.** Retrieval and hook
-delivery were real, but startup eligibility was simulated. Shared audiences have
-fixture coverage, not live shared-orb validation. Private experiment records and
-thread links are not included in this public source distribution.
-
-## Development
-
-Requires Amp CLI, Bash, Bun and Git. From `amp-plugin/`:
-
-```sh
-bun install --frozen-lockfile
-bun run check
-bun test
-```
-
-The tests use synthetic threads and a mocked Jev client, not live account history.
-The published revision passed type checking and 16 tests with 447 assertions.
-No lint command is configured.
 
 [Plugin API reference](https://ampcode.com/docs/plugin-api)
